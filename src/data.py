@@ -1,13 +1,12 @@
-import torch
 from torchvision.datasets import MNIST
 from torch.utils.data import DataLoader, Dataset, random_split, Subset
 
 from typing import Tuple
 
 
-def get_dataloaders(datasets: Dataset | list[Dataset],
-                    batch_size: int = 64,
-                    shuffle: bool = True) -> DataLoader | list[DataLoader]:
+def get_dataloaders(datasets,
+                    batch_size=64,
+                    shuffle=True):
     if isinstance(datasets, Dataset):
         return DataLoader(datasets, batch_size=batch_size, shuffle=shuffle)
     else:
@@ -34,7 +33,7 @@ def get_train_test_datasets(idx: str, transform, target_transform=None) -> Tuple
     return train_dataset, test_dataset
 
 
-def get_retain_forget_datasets(dataset: Dataset, forget: float | int) -> Tuple[Dataset, Dataset]:
+def get_retain_forget_datasets(dataset, forget):
     retain_dataset, forget_dataset = None, None
     if isinstance(float, forget):
         # selective unlearning
