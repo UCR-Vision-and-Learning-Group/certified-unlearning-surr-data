@@ -6,8 +6,8 @@ from src.eval import evaluate
 
 
 def train_epoch(train_loader, model, criterion, optimizer, epoch, device):
-    pbar = tqdm(train_loader, desc='train epoch {}'.format(epoch), unit='batch')
-    for data, target in tqdm(train_loader, desc="train"):
+    pbar = tqdm(train_loader, desc='train epoch {}'.format(epoch + 1), unit='batch')
+    for data, target in pbar:
         data, target = data.to(device), target.to(device)
         output = model(data)
         loss = criterion(output, target)
@@ -15,7 +15,7 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, device):
         loss.backward()
         optimizer.step()
         pbar.set_postfix(loss=loss.item())
-        pbar.update(1)
+    pbar.close()
 
 
 def train(train_loader, val_loader, model, criterion, optimizer, num_epoch=10, device=None):

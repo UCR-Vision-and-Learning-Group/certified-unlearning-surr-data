@@ -1,5 +1,6 @@
 from torchvision.datasets import MNIST
-from torch.utils.data import DataLoader, Dataset, random_split, Subset
+from torch.utils.data import DataLoader, Dataset, random_split, Subset, ConcatDataset
+import numpy as np
 
 from typing import Tuple
 
@@ -54,5 +55,42 @@ def get_retain_forget_datasets(dataset, forget):
     return retain_dataset, forget_dataset
 
 
-def get_exact_surr_datasets(dataset: Dataset):
-    pass
+def get_class_ratios(dataset, num_class):
+    ratios = np.zeros(num_class, dtype=int)
+    for _, label in dataset:
+        ratios[label] += 1
+    return ratios / len(dataset)
+
+
+def _partite_by_class(dataset, num_class):
+    idxs = [[] for _ in range(num_class)]
+    for idx, (_, label) in enumerate(dataset):
+        idxs[label].append(idx)
+    return [Subset(dataset, idx) for idx in idxs]
+
+
+def get_exact_surr_datasets(dataset, num_class, target_size=None, target_ratios=None, surr_dataset=None):
+    # TODO: errors might be explained later
+    if surr_dataset is None and (target_ratios is not None and target_size is not None):
+        # partite all classes
+        class_partitions = _partite_by_class(dataset, num_class)
+
+        # find target sizes for each class
+        target_sizes = (target_ratios * target_size).astype(int)
+        remainder = target_size - np.sum(target_sizes)
+        add_to = np.random.choice(num_class, remainder)
+        for add_to_idx in add_to:
+            target_sizes[add_to_idx] += 1
+        assert np.sum(target_sizes) == target_size, 'target size could not achieved'
+
+        # randomly select specified number of samples from each class
+        # TODO: for the second dataset the same thing can be applied as the first one
+        first_class_partitions, second_class_partitions = [], []
+        for class_idx, target_size_by_class in enumerate(target_sizes):
+            first_idx = np.random.choice(len(class_partitions[class_idx]), target_size_by_class, replace=False)
+            second_idx = np.delete(np.arange(len(class_partitions[class_idx])), first_idx)
+            first_class_partitions.append(Subset(class_partitions[class_idx], first_idx))
+            second_class_partitions.append(Subset(class_partitions[class_idx], second_idx))
+        return ConcatDataset(first_class_partitions), ConcatDataset(second_class_partitions)
+    elif surr_dataset is not None:
+        return dataset, surr_dataset
