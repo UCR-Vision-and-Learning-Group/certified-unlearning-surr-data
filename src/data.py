@@ -36,12 +36,12 @@ def get_train_test_datasets(idx: str, transform, target_transform=None) -> Tuple
 
 def get_retain_forget_datasets(dataset, forget):
     retain_dataset, forget_dataset = None, None
-    if isinstance(float, forget):
+    if isinstance(forget, float):
         # selective unlearning
         forget_size = int(len(dataset) * forget)
         retain_size = len(dataset) - forget_size
         retain_dataset, forget_dataset = random_split(dataset, [retain_size, forget_size])
-    elif isinstance(int, forget):
+    elif isinstance(forget, int):
         # class unlearning
         retain_dataset, forget_dataset = [], []
         for idx, (_, label) in enumerate(dataset):
@@ -69,26 +69,56 @@ def _partite_by_class(dataset, num_class):
     return [Subset(dataset, idx) for idx in idxs]
 
 
-def get_exact_surr_datasets(dataset, num_class, target_size=None, target_ratios=None, surr_dataset=None):
+def __check_max_reached(sizes, max_sizes):
+    max_reached = []
+    for idx, max_size in enumerate(max_sizes):
+        if sizes[idx] >= max_size:
+            max_reached.append(idx)
+            sizes[idx] = max_size
+    return sizes, np.asarray(max_reached)
+
+
+def _get_sizes(size, ratios, max_sizes):
+    num_class = len(ratios)
+    sizes = (ratios * size).astype(int)
+
+    sizes, max_reached = __check_max_reached(sizes, max_sizes)
+    remainder = size - np.sum(sizes)
+    for _ in range(remainder):
+        sizes[np.random.choice(np.delete(np.arange(num_class), np.asarray(max_reached)))] += 1
+        sizes, max_reached = __check_max_reached(sizes, max_sizes)
+        if len(max_reached) == num_class:
+            break
+
+    assert np.sum(sizes) == size, 'size could not achieved'
+    return sizes
+
+
+def get_exact_surr_datasets(dataset,
+                            target_size=None, target_ratios=None,
+                            starget_size=None, starget_ratios=None,
+                            surr_dataset=None):
     # TODO: errors might be explained later
     if surr_dataset is None and (target_ratios is not None and target_size is not None):
+        num_class = len(target_ratios)
         # partite all classes
         class_partitions = _partite_by_class(dataset, num_class)
 
         # find target sizes for each class
-        target_sizes = (target_ratios * target_size).astype(int)
-        remainder = target_size - np.sum(target_sizes)
-        add_to = np.random.choice(num_class, remainder)
-        for add_to_idx in add_to:
-            target_sizes[add_to_idx] += 1
-        assert np.sum(target_sizes) == target_size, 'target size could not achieved'
+        max_sizes = [len(partition) for partition in class_partitions]
+        target_sizes = _get_sizes(target_size, target_ratios, max_sizes)
+        starget_sizes = None
+        if starget_size is not None and starget_ratios is not None:
+            starget_sizes = _get_sizes(starget_size, starget_ratios, max_sizes)
 
         # randomly select specified number of samples from each class
-        # TODO: for the second dataset the same thing can be applied as the first one
         first_class_partitions, second_class_partitions = [], []
         for class_idx, target_size_by_class in enumerate(target_sizes):
             first_idx = np.random.choice(len(class_partitions[class_idx]), target_size_by_class, replace=False)
-            second_idx = np.delete(np.arange(len(class_partitions[class_idx])), first_idx)
+            if starget_sizes is not None:
+                second_idx = np.random.choice(len(class_partitions[class_idx]), starget_sizes[class_idx], replace=False)
+            else:
+                second_idx = np.delete(np.arange(len(class_partitions[class_idx])), first_idx)
             first_class_partitions.append(Subset(class_partitions[class_idx], first_idx))
             second_class_partitions.append(Subset(class_partitions[class_idx], second_idx))
         return ConcatDataset(first_class_partitions), ConcatDataset(second_class_partitions)
