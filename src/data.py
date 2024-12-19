@@ -1,4 +1,4 @@
-from torchvision.datasets import MNIST, USPS
+from torchvision.datasets import MNIST, USPS, CIFAR10
 from torch.utils.data import DataLoader, Dataset, random_split, Subset, ConcatDataset
 import numpy as np
 
@@ -31,6 +31,11 @@ def get_train_test_datasets(idx: str, transform, target_transform=None) -> Tuple
                              target_transform=target_transform, download=True)
         test_dataset = USPS('./data', train=False, transform=transform,
                             target_transform=target_transform, download=True)
+    elif idx == 'cifar10':
+        train_dataset = CIFAR10('./data', train=True, transform=transform, 
+                                target_transform=target_transform, download=True)
+        test_dataset = CIFAR10('./data', train=False, transform=transform,
+                               target_transform=target_transform, download=True)
     try:
         assert (test_dataset is not None and train_dataset is not None), 'the given dataset id is not recognized'
     except AssertionError as error:

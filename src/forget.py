@@ -62,11 +62,14 @@ def calculate_cov(loader, device):
     return cumulative_cov / cumulative_size
 
 
-def calculate_hess(model, loader, criterion, linear=False, num_class=None):
+def calculate_hess(model, wloader, floader, criterion, linear=False, num_class=None):
     device = get_module_device(model)
     if linear and num_class is not None:
-        hess = torch.kron(torch.eye(num_class), calculate_cov(loader, device))
-        return hess
+        whess = torch.kron(torch.eye(num_class), calculate_cov(wloader, device))
+        fhess = torch.kron(torch.eye(num_class), calculate_cov(floader, device))
+        wsize = len(wloader.dataset)
+        fsize = len(floader.dataset)
+        return (wsize * whess - fsize * fhess) / (wsize - fsize)
 
 
 def _accumulate_grads(prev, curr, prev_size, curr_size):
@@ -127,10 +130,10 @@ def update_model(model, updates):
             param.add_(update.to(device))
 
 
-def forget(model, hess_loader, grad_loader, criterion, linear=False, num_class=None):
+def forget(model, whess_loader, fhess_loader, grad_loader, criterion, linear=False, num_class=None):
     device = get_module_device(model)
     fmodel = deepcopy(model.to('cpu')).to(device)
-    hess = calculate_hess(fmodel, hess_loader, criterion, linear=linear, num_class=num_class)
+    hess = calculate_hess(fmodel, whess_loader, fhess_loader, criterion, linear=linear, num_class=num_class)
     grads = calculate_grad(fmodel, grad_loader, criterion)
     update = calculate_update(hess, grads, device)
     update_model(fmodel, update)
