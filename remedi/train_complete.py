@@ -21,6 +21,7 @@ from remedi.REMEDI import REMEDI, train_model
 from remedi.utils import TriangleDataset, MoonsDataset, BallDataset, HypercubeDataset
 from src.vae import VanillaVAE, entropy
 from src.train import train_vae
+from src.data import get_dataloaders
 
 # %%
 
@@ -64,8 +65,8 @@ args_REMEDI.lr_base_dist = 0.001
 
 # %%
 
-def train_complete_model(args_data, args_REMEDI, args_KNIFE, base_dist_filename=None, seed=7, device='cpu',
-                         log_parent_dir=None, vae=False):
+def train_complete_model(args_data, args_REMEDI, args_KNIFE, base_dist_filename=None, seed=42, device='cpu',
+                         log_parent_dir=None, vae=False, custom_trd=None, custom_td=None):
     # check first two arguments are not both None
     if base_dist_filename == None and args_KNIFE == None:
         raise ValueError('base_dist_filename and args_KNIFE cannot both be None')
@@ -75,7 +76,7 @@ def train_complete_model(args_data, args_REMEDI, args_KNIFE, base_dist_filename=
         if not log_parent_dir.exists():
             raise ValueError('log_parent_dir does not exist')
 
-    assert args_data.type in ['triangle', 'two-moons', 'ball', 'cube']
+    assert args_data.type in ['triangle', 'two-moons', 'ball', 'cube', 'custom']
 
     log = False
     if log_parent_dir != None:
@@ -141,6 +142,11 @@ def train_complete_model(args_data, args_REMEDI, args_KNIFE, base_dist_filename=
                                   shuffle=True)
         test_loader = DataLoader(test_dataset, worker_init_fn=worker_init_fn, batch_size=args_KNIFE.batchsize,
                                  shuffle=True)
+    elif args_data.type == 'custom':
+        train_dataset = custom_trd
+        test_dataset = custom_td
+        train_loader, test_loader = get_dataloaders([train_dataset, test_dataset],
+                                                    batch_size=args_KNIFE.batchsize)
 
     # if has property entropy, check that train and test dataset entropies match
     if hasattr(train_dataset, 'entropy'):
@@ -199,8 +205,8 @@ def train_complete_model(args_data, args_REMEDI, args_KNIFE, base_dist_filename=
         plt.legend()
         plt.xlabel("Epoch")
         plt.ylabel("Entropy")
-        plt.savefig(save_dir / 'KNIFE_train_val_losses.png')
-        #plt.show()
+        # plt.savefig(save_dir / 'KNIFE_train_val_losses.png')
+        plt.show()
 
     base_dist = copy.deepcopy(base_dist0)
 
@@ -221,11 +227,15 @@ def train_complete_model(args_data, args_REMEDI, args_KNIFE, base_dist_filename=
     test_loader = DataLoader(test_dataset, worker_init_fn=worker_init_fn, batch_size=args_REMEDI.batchsize,
                              shuffle=True)
 
+    if not hasattr(args_REMEDI, "custom"):
+        args_REMEDI.custom = False
+
     # Train model
     remedi_train_losses, remedi_val_losses = train_model(mini, args_REMEDI.use_f_div,
                                                          args_REMEDI.use_weight_averaged_samples, optimizer,
                                                          train_loader, test_loader, args_REMEDI.n_epochs,
-                                                         args_REMEDI.batchsize, args_REMEDI.sample_size)
+                                                         args_REMEDI.batchsize, args_REMEDI.sample_size,
+                                                         custom=args_REMEDI.custom)
 
     if log:
         with open(save_dir / 'remedi_train_val_losses.pkl', 'wb') as f:
@@ -245,8 +255,8 @@ def train_complete_model(args_data, args_REMEDI, args_KNIFE, base_dist_filename=
     plt.legend()
     plt.xlabel("Epoch")
     plt.ylabel("Entropy")
-    plt.savefig(save_dir / 'REMEDI_train_val_losses.png')
-    #plt.show()
+    # plt.savefig(save_dir / 'REMEDI_train_val_losses.png')
+    plt.show()
 
     end_time = datetime.now()
     total_time = end_time - start_time

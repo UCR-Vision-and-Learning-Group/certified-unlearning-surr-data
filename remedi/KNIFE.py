@@ -10,6 +10,7 @@ from contextlib import nullcontext
 
 from sklearn.mixture import GaussianMixture
 
+
 class MargKernel(nn.Module):
     def __init__(self, args, zc_dim, zd_dim, init_samples=None):
 
@@ -75,7 +76,7 @@ class MargKernel(nn.Module):
         y = -y / 2 + torch.sum(torch.log(torch.abs(var) + 1e-8), dim=-1) + w
         y = torch.logsumexp(y, dim=-1)
         return self.logC.to(y.device) + y
-    
+
     # Alias for logpdf, for compatibility with torch.distributions
     def log_prob(self, x):
         return self.logpdf(x)
@@ -91,8 +92,8 @@ class MargKernel(nn.Module):
         tri = torch.tril(self.tri, diagonal=-1)
 
         V = torch.diag_embed(var)
-        L = V + tri @ V#Cholesky factor of precision matrix
-        
+        L = V + tri @ V  #Cholesky factor of precision matrix
+
         I = D.Categorical(weights).sample((n,))
 
         mu_I = mu[I]
@@ -100,7 +101,7 @@ class MargKernel(nn.Module):
 
         d = D.MultivariateNormal(torch.zeros_like(mu_I).to(mu_I.device), torch.eye(mu_I.shape[1]).to(mu_I.device))
         z = d.sample()
-        z1 = torch.linalg.solve_triangular(L_I, z.unsqueeze(-1), upper=False).squeeze(-1) 
+        z1 = torch.linalg.solve_triangular(L_I, z.unsqueeze(-1), upper=False).squeeze(-1)
         samples = z1 + mu_I
 
         return samples
@@ -111,7 +112,8 @@ class MargKernel(nn.Module):
     def forward(self, x):
         y = -self.logpdf(x)
         return torch.mean(y)
-    
+
+
 class KNIFE(MargKernel):
     def __init__(self, args, zc_dim, zd_dim, init_samples=None):
         super(KNIFE, self).__init__(args, zc_dim, zd_dim, init_samples)
@@ -126,13 +128,13 @@ class KNIFE(MargKernel):
         tri = torch.tril(self.tri, diagonal=-1)
 
         V = torch.diag_embed(var)
-        L = (V + tri @ V).squeeze(0)#Cholesky factor of precision matrix
-            
+        L = (V + tri @ V).squeeze(0)  #Cholesky factor of precision matrix
+
         d = D.MultivariateNormal(torch.zeros_like(mu).to(mu.device), torch.eye(mu.shape[1]).to(mu.device))
 
         z = d.sample((n,))
         # print(z.shape)
-        z1 = torch.linalg.solve_triangular(L, z.unsqueeze(-1), upper=False).squeeze(-1) 
+        z1 = torch.linalg.solve_triangular(L, z.unsqueeze(-1), upper=False).squeeze(-1)
         samples = z1 + mu
         # print(z1.shape)
         # print(T(samples).shape)
@@ -142,14 +144,14 @@ class KNIFE(MargKernel):
         samples_flattened = torch.flatten(samples, 0, 1)
 
         flattened_T_res = T(samples_flattened)
-        
+
         #unflatten the first dimension into the first two dimensions
         T_res = flattened_T_res.view(n, self.K)
 
         return T_res @ weights
-    
+
     @staticmethod
-    def loadKNIFE(path: str, device = 'cpu'):
+    def loadKNIFE(path: str, device='cpu'):
         params = torch.load(path, map_location=device)
 
         args = SimpleNamespace(
@@ -166,10 +168,10 @@ class KNIFE(MargKernel):
         model = KNIFE(args, d, 42).to(device)
         model.load_state_dict(params)
 
-        return model        
-    
+        return model
+
     @staticmethod
-    def from_params(means, logvar, tri, weigh, device = 'cpu'):
+    def from_params(means, logvar, tri, weigh, device='cpu'):
         args = SimpleNamespace(
             optimize_mu=True,
             marg_modes=means.shape[0],
@@ -194,9 +196,9 @@ class KNIFE(MargKernel):
         model.weigh = torch.nn.Parameter(weigh.float(), requires_grad=True)
 
         return model
-    
+
     @staticmethod
-    def from_params_chol(means, L, weights, device = 'cpu'):
+    def from_params_chol(means, L, weights, device='cpu'):
         means = means.float()
         L = L.float()
         weights = weights.float()
@@ -206,16 +208,17 @@ class KNIFE(MargKernel):
         r_tri = ((L - torch.diag_embed(diag)) @ (torch.diag_embed(1.0 / diag))).tril(diagonal=-1)
 
         return KNIFE.from_params(means, logvar.unsqueeze(0), r_tri.unsqueeze(0), weights.log().unsqueeze(0), device)
-    
+
     @staticmethod
-    def from_gmm(gmm: GaussianMixture, device = 'cpu'):
+    def from_gmm(gmm: GaussianMixture, device='cpu'):
         means = torch.tensor(gmm.means_).float()
         L = torch.tensor(gmm.precisions_cholesky_).transpose(1, 2).float()
         weights = torch.tensor(gmm.weights_).float()
 
         return KNIFE.from_params_chol(means, L, weights, device)
 
-def fit_kernel(args, print_log, return_history = False):
+
+def fit_kernel(args, print_log, return_history=False):
     if type(args.train_samples) is torch.utils.data.dataloader.DataLoader:
         dataloader = args.train_samples
         test_loader = args.test_samples
@@ -228,6 +231,15 @@ def fit_kernel(args, print_log, return_history = False):
     iterator = iter(dataloader)
     for _ in range(args.num_modes // dataloader.batch_size + 1):
         tmp.append(next(iterator))
+
+    custom_flag = False
+    if hasattr(args, 'custom'):
+        custom_flag = True
+
+    if custom_flag:
+        for tmp_idx, (data, label) in enumerate(tmp):
+            # tmp[tmp_idx] = torch.cat([data, label.unsqueeze(-1)], dim=1)
+            tmp[tmp_idx] = data
 
     kernel_samples = torch.cat(tmp, dim=0)[:args.num_modes]
     #kernel_samples = args.train_samples[np.random.choice(len(args.train_samples), args.num_modes, replace=False)]
@@ -248,16 +260,16 @@ def fit_kernel(args, print_log, return_history = False):
     #print(f"dim = {args.dimension}")
 
     class_ = KNIFE
-    
+
     if hasattr(args, 'class_'):
         if args.class_ == 'MargKernel':
             class_ = MargKernel
-    
+
     G_adaptive = class_(args_adaptive,
-                            args.dimension,
-                            None,
-                            init_samples=torch.tensor(kernel_samples).to(args.device),
-                            )
+                        args.dimension,
+                        None,
+                        init_samples=torch.tensor(kernel_samples).to(args.device),
+                        )
     G_adaptive = G_adaptive.to(args.device)
 
     opt = torch.optim.Adam(G_adaptive.parameters(), lr=args.lr)
@@ -270,12 +282,16 @@ def fit_kernel(args, print_log, return_history = False):
         data_iter = iter(dataloader)
         sum = np.array(0.0)
 
-        with (tqdm(total = len(dataloader)) if print_log else nullcontext()) as progress_bar:
+        with (tqdm(total=len(dataloader)) if print_log else nullcontext()) as progress_bar:
             for i, x in enumerate(data_iter):
                 if print_log:
                     progress_bar.update()
 
                 opt.zero_grad()
+                if custom_flag:
+                    data, label = x
+                    # x = torch.cat([data, label.unsqueeze(-1)], dim=1)
+                    x = data
 
                 x = x.to(args.device)
 
@@ -283,7 +299,7 @@ def fit_kernel(args, print_log, return_history = False):
                 loss_adaptive.backward()
                 loss_np = loss_adaptive.detach().cpu().numpy()
                 sum += loss_np
-                avg_train_loss = sum / (i+1)#Not entirely when having a final batch of different size
+                avg_train_loss = sum / (i + 1)  #Not entirely when having a final batch of different size
                 if print_log:
                     progress_bar.set_description(f"Train loss: {avg_train_loss:.3f}")
 
@@ -293,6 +309,10 @@ def fit_kernel(args, print_log, return_history = False):
 
             sum = np.array(0.0)
             for x in iter(test_loader):
+                if custom_flag:
+                    data, label = x
+                    # x = torch.cat([data, label.unsqueeze(-1)], dim=1)
+                    x = data
                 x = x.to(args.device)
                 loss_np = G_adaptive(x).detach().cpu().numpy()
                 sum += x.shape[0] * loss_np
@@ -301,10 +321,11 @@ def fit_kernel(args, print_log, return_history = False):
 
             test_losses.append(avg_test_loss)
 
-            G_adaptive.cross_entropy = avg_test_loss # dumb hack to get the test loss in the end
+            G_adaptive.cross_entropy = avg_test_loss  # dumb hack to get the test loss in the end
 
             if print_log:
-                progress_bar.set_description(f"{i_epoch + 1}: Train loss: {avg_train_loss:.3f} \t Test loss: {avg_test_loss:.3f}")
+                progress_bar.set_description(
+                    f"{i_epoch + 1}: Train loss: {avg_train_loss:.3f} \t Test loss: {avg_test_loss:.3f}")
                 progress_bar.refresh()
 
     if print_log:

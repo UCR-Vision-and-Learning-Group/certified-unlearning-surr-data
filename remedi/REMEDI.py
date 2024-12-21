@@ -111,7 +111,7 @@ class MINI_CNN_MNIST(nn.Module):
         elif self.output_type == "eT":
             return nn.functional.elu(x, 1) + 1 + self.eps
 
-def train_model(model: REMEDI, use_f_div: bool, use_weight_averaged_samples: bool, optimizer, train_loader, test_loader, n_epochs, batchsize, sample_size, clip_grad_norm = None, verbose: bool = False):
+def train_model(model: REMEDI, use_f_div: bool, use_weight_averaged_samples: bool, optimizer, train_loader, test_loader, n_epochs, batchsize, sample_size, clip_grad_norm = None, verbose: bool = False, custom=False):
     # Create list to store losses
     train_losses = []
     train_comp0 = []
@@ -130,7 +130,10 @@ def train_model(model: REMEDI, use_f_div: bool, use_weight_averaged_samples: boo
         for i, sample in enumerate(train_loader):
             # Dirty fix for MNIST
             if type(sample) == list:
-                sample = sample[0]            
+                sample = sample[0]
+            # if custom:
+            #     data, label = sample
+            #     sample = torch.cat([data, label.unsqueeze(-1)], dim=1)
 
             comp0 = -model.base_dist.log_prob(sample.float()).mean()
 
@@ -202,7 +205,11 @@ def train_model(model: REMEDI, use_f_div: bool, use_weight_averaged_samples: boo
             for i_test, sample in enumerate(test_loader):
                 # Dirty fix for MNIST
                 if type(sample) == list:
-                    sample = sample[0]  
+                    sample = sample[0]
+
+                # if custom:
+                #     data, label = sample
+                #     sample = torch.cat([data, label.unsqueeze(-1)], dim=1)
 
                 comp0 = -model.base_dist.log_prob(sample.float()).mean()
 

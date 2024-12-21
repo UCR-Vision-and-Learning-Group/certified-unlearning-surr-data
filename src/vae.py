@@ -174,7 +174,7 @@ def entropy(vae, dataloader, k=500, sigma=1.0, device=None):
     log_probs = []
     pbar = tqdm(dataloader, desc='entropy estimation', unit='batch')
     for batch in pbar:
-        if isinstance(batch, tuple):
+        if isinstance(batch, tuple) or isinstance(batch, list):
             batch, _ = batch
         for x in batch:
             log_prob = log_prob_x(x.unsqueeze(0).to(device), vae, k=k, sigma=sigma)

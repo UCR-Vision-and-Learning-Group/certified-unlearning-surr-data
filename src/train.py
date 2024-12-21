@@ -28,14 +28,14 @@ def train(train_loader, val_loader, model, criterion, optimizer, num_epoch=10, d
         evaluate(val_loader, model, criterion, device=device)
 
 
-def train_vae(train_loader, vae, optimizer, num_epoch=100, device=None):
+def train_vae(train_loader, vae, optimizer, num_epoch=10, device=None):
     if device is None:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     vae.train()
     for epoch in range(num_epoch):
         pbar = tqdm(train_loader, desc='vae train epoch {}'.format(epoch + 1), unit='batch')
         for batch in pbar:
-            if isinstance(batch, tuple):
+            if isinstance(batch, tuple) or isinstance(batch, list):
                 batch, _ = batch
             batch = batch.to(device)
             optimizer.zero_grad()
