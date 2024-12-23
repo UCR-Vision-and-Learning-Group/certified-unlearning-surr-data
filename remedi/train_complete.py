@@ -66,7 +66,7 @@ args_REMEDI.lr_base_dist = 0.001
 # %%
 
 def train_complete_model(args_data, args_REMEDI, args_KNIFE, base_dist_filename=None, seed=42, device='cpu',
-                         log_parent_dir=None, vae=False, custom_trd=None, custom_td=None):
+                         log_parent_dir=None, vae=False, custom_trd=None, custom_td=None, knife_only=False):
     # check first two arguments are not both None
     if base_dist_filename == None and args_KNIFE == None:
         raise ValueError('base_dist_filename and args_KNIFE cannot both be None')
@@ -184,6 +184,8 @@ def train_complete_model(args_data, args_REMEDI, args_KNIFE, base_dist_filename=
     else:
         print("Fitting base distribution (KNIFE)")
         base_dist0, knife_train_losses, knife_val_losses = fit_kernel(args_KNIFE, True, return_history=True)
+        if knife_only:
+            return base_dist0, knife_train_losses, knife_val_losses
 
     if log:
         torch.save(base_dist0.state_dict(), save_dir / 'base_dist0.pt')
@@ -193,20 +195,20 @@ def train_complete_model(args_data, args_REMEDI, args_KNIFE, base_dist_filename=
             with open(save_dir / 'knife_train_val_losses.pkl', 'wb') as f:
                 pickle.dump((knife_train_losses, knife_val_losses), f)
 
-    if 'knife_train_losses' in locals():
-        # Plot KNIFE losses
-        plt.clf()
-        if hasattr(train_dataset, 'entropy'):
-            plt.axhline(train_dataset.entropy(), color='g', linestyle='--', label="True")
-        if vae:
-            plt.axhline(vae_entropy, color='blue', linestyle='--', label="vae")
-        plt.plot(knife_train_losses, label="Train")
-        plt.plot(knife_val_losses, label="Validation")
-        plt.legend()
-        plt.xlabel("Epoch")
-        plt.ylabel("Entropy")
+    # if 'knife_train_losses' in locals():
+    #     # Plot KNIFE losses
+    #     plt.clf()
+    #     if hasattr(train_dataset, 'entropy'):
+    #         plt.axhline(train_dataset.entropy(), color='g', linestyle='--', label="True")
+    #     if vae:
+    #         plt.axhline(vae_entropy, color='blue', linestyle='--', label="vae")
+    #     plt.plot(knife_train_losses, label="Train")
+    #     plt.plot(knife_val_losses, label="Validation")
+    #     plt.legend()
+    #     plt.xlabel("Epoch")
+    #     plt.ylabel("Entropy")
         # plt.savefig(save_dir / 'KNIFE_train_val_losses.png')
-        plt.show()
+        # plt.show()
 
     base_dist = copy.deepcopy(base_dist0)
 
@@ -235,7 +237,7 @@ def train_complete_model(args_data, args_REMEDI, args_KNIFE, base_dist_filename=
                                                          args_REMEDI.use_weight_averaged_samples, optimizer,
                                                          train_loader, test_loader, args_REMEDI.n_epochs,
                                                          args_REMEDI.batchsize, args_REMEDI.sample_size,
-                                                         custom=args_REMEDI.custom)
+                                                         custom=args_REMEDI.custom, verbose=True)
 
     if log:
         with open(save_dir / 'remedi_train_val_losses.pkl', 'wb') as f:

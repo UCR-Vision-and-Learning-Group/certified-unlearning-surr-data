@@ -45,8 +45,13 @@
 
 import torch
 from copy import deepcopy
+import math
+import argparse
+from torch.nn.functional import softmax, one_hot
 
+# from src.noise import set_noise
 from src.utils import get_module_device
+from remedi.train_complete import train_complete_model
 
 
 def calculate_cov(loader, device):
@@ -104,6 +109,11 @@ def _linearize_grads(grads):
     return torch.cat(flat_grad), prev_sizes
 
 
+def calculate_grad_norm(grad):
+    grad, prev_sizes = _linearize_grads(grad)
+    return torch.norm(grad).item(), prev_sizes
+
+
 def _adjust_update(update, prev_sizes):
     splits = [size[0] * size[1] for size in prev_sizes]
     adjusted_update = torch.split(update, splits)
@@ -130,11 +140,123 @@ def update_model(model, updates):
             param.add_(update.to(device))
 
 
-def forget(model, whess_loader, fhess_loader, grad_loader, criterion, linear=False, num_class=None):
+######################################### NOISE
+def approximate_upper_cross_entropy(loader, model):
+    device = get_module_device(model)
+    required_probs = []
+    for data, label in loader:
+        data, label = data.to(device), label.to(device)
+        output = model(data)
+        probs = softmax(output, dim=1)
+        mask = one_hot(label.long(), num_classes=probs.size(1)).bool()
+        required_probs.append(probs[mask])
+    return -1 * (torch.sum(torch.log(torch.cat(required_probs))).item() / len(loader.dataset))
+
+
+def approximate_entropy(train_dataset, val_dataset, device):
+    args_data = argparse.Namespace()
+    args_data.type = 'custom'
+    if isinstance(train_dataset[0], tuple) or isinstance(train_dataset[0], list):
+        args_data.dim = len(train_dataset[0][0])
+    else:
+        args_data.dim = len(train_dataset[0])
+
+    args_KNIFE = argparse.Namespace()
+    args_KNIFE.batchsize = 128
+    args_KNIFE.num_modes = 128
+    args_KNIFE.epochs = 30
+    args_KNIFE.lr = 1e-3
+    args_KNIFE.shuffle = True
+    args_KNIFE.cov_diagonal = 'var'
+    args_KNIFE.cov_off_diagonal = 'var'
+    args_KNIFE.average = 'var'
+    args_KNIFE.use_tanh = True
+    args_KNIFE.device = device
+    args_KNIFE.dimension = args_data.dim
+    args_KNIFE.custom = True
+
+    knife, train_losses, val_losses = train_complete_model(args_data=args_data, args_REMEDI=None, args_KNIFE=args_KNIFE,
+                                                           device=device, custom_trd=train_dataset,
+                                                           custom_td=val_dataset, knife_only=True)
+
+    return train_losses[-1]
+
+
+def calculate_upper_tv(surr_loader, model,
+                       tighten_bound, train_dataset, val_dataset):
+    device = get_module_device(model)
+
+    app_up_cross = approximate_upper_cross_entropy(surr_loader, model)
+    if tighten_bound:
+        app_ent = approximate_entropy(train_dataset, val_dataset, device)
+    else:
+        app_ent = 0
+
+    upper_kl = app_up_cross - app_ent
+    return math.sqrt(2 * upper_kl)
+
+
+def calculate_upper_app_unlearn_surr(surr_loader, model, grad, smooth, sc,
+                                     tighten_bound, train_dataset, val_dataset, surr=True):
+    grad_norm, prev_sizes = calculate_grad_norm(grad)
+    if surr:
+        upper = smooth / (sc ** 2)
+        upper_tv = calculate_upper_tv(surr_loader, model, tighten_bound, train_dataset, val_dataset)
+        upper = upper * upper_tv * grad_norm
+        return upper, prev_sizes
+    else:
+        return None, prev_sizes
+
+
+def calculate_upper_retrain_app_unlearn(num_retain, num_forget, sc, lip, hlip):
+    numerator = 2 * hlip * (lip ** 2) * (num_forget ** 2)
+    denominator = (sc ** 3) * (num_retain ** 2)
+    return numerator / denominator
+
+
+def set_noise(surr_loader, forget_size, model, grad,
+              eps, delta, smooth=1, sc=1, lip=1, hlip=1,
+              tighten_bound=True, train_dataset=None, val_dataset=None, surr=False):
+    upper_retrain_app_unlearn = calculate_upper_retrain_app_unlearn(len(surr_loader.dataset),
+                                                                    forget_size,
+                                                                    sc, lip, hlip)
+
+    upper_app_unlearn_surr, prev_sizes = calculate_upper_app_unlearn_surr(surr_loader, model, grad,
+                                                                          smooth, sc,
+                                                                          tighten_bound, train_dataset, val_dataset,
+                                                                          surr=surr)
+    if surr:
+        upper = upper_retrain_app_unlearn + upper_app_unlearn_surr
+    else:
+        upper = upper_retrain_app_unlearn
+    sigma = upper / eps
+    sigma = sigma * math.sqrt(2 * math.log(1.25 / delta))
+
+    model_size = 0
+    for size in prev_sizes:
+        model_size += size[0] * size[1]
+
+    update = torch.normal(0, sigma, size=(model_size,))
+    update = _adjust_update(update, prev_sizes)
+    return update
+
+
+#########################################
+
+
+def forget(model, whess_loader, fhess_loader, grad_loader, criterion, linear=False, num_class=None,
+           eps=None, delta=None, smooth=1, sc=1, lip=1, hlip=1,
+           tighten_bound=True, train_dataset=None, val_dataset=None, surr=False):
     device = get_module_device(model)
     fmodel = deepcopy(model.to('cpu')).to(device)
     hess = calculate_hess(fmodel, whess_loader, fhess_loader, criterion, linear=linear, num_class=num_class)
     grads = calculate_grad(fmodel, grad_loader, criterion)
     update = calculate_update(hess, grads, device)
     update_model(fmodel, update)
+    if eps is not None and delta is not None:
+        noise = set_noise(whess_loader, len(fhess_loader.dataset), model, grads, eps, delta,
+                          smooth=smooth, sc=sc, lip=lip, hlip=hlip,
+                          tighten_bound=tighten_bound, train_dataset=train_dataset, val_dataset=val_dataset,
+                          surr=surr)
+        update_model(fmodel, noise)
     return fmodel

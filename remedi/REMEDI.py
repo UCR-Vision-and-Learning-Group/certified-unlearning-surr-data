@@ -2,6 +2,7 @@ import torch
 from torch import nn
 
 from remedi.KNIFE import KNIFE
+from src.utils import get_module_device
 
 class REMEDI(nn.Module):
     def __init__(self, base_dist: KNIFE, train_base_dist: bool, hidden_dim = [100, 100], one_hot_y = False, output_type = "T", eps: float = 1e-8):
@@ -112,6 +113,7 @@ class MINI_CNN_MNIST(nn.Module):
             return nn.functional.elu(x, 1) + 1 + self.eps
 
 def train_model(model: REMEDI, use_f_div: bool, use_weight_averaged_samples: bool, optimizer, train_loader, test_loader, n_epochs, batchsize, sample_size, clip_grad_norm = None, verbose: bool = False, custom=False):
+    device = get_module_device(model)
     # Create list to store losses
     train_losses = []
     train_comp0 = []
@@ -130,7 +132,7 @@ def train_model(model: REMEDI, use_f_div: bool, use_weight_averaged_samples: boo
         for i, sample in enumerate(train_loader):
             # Dirty fix for MNIST
             if type(sample) == list:
-                sample = sample[0]
+                sample = sample[0].to(device)
             # if custom:
             #     data, label = sample
             #     sample = torch.cat([data, label.unsqueeze(-1)], dim=1)
@@ -205,7 +207,7 @@ def train_model(model: REMEDI, use_f_div: bool, use_weight_averaged_samples: boo
             for i_test, sample in enumerate(test_loader):
                 # Dirty fix for MNIST
                 if type(sample) == list:
-                    sample = sample[0]
+                    sample = sample[0].to(device)
 
                 # if custom:
                 #     data, label = sample
