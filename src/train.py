@@ -1,9 +1,11 @@
 import torch
+import torch.nn as nn
 
 from tqdm import tqdm
 
 from src.eval import evaluate
-from src.vae import loss_function
+from src.loss import L2RegularizedCrossEntropyLoss
+from archive.vae import loss_function
 
 
 def train_epoch(train_loader, model, criterion, optimizer, epoch, device):
@@ -11,7 +13,10 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, device):
     for data, target in pbar:
         data, target = data.to(device), target.to(device)
         output = model(data)
-        loss = criterion(output, target)
+        if isinstance(criterion, L2RegularizedCrossEntropyLoss):
+            loss = criterion(output, target, model)
+        else:
+            loss = criterion(output, target)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -45,3 +50,4 @@ def train_vae(train_loader, vae, optimizer, num_epoch=10, device=None):
             optimizer.step()
             pbar.set_postfix(loss=loss['loss'].item(), recon=loss['Reconstruction_Loss'].item(), kld=loss['KLD'].item())
         pbar.close()
+
