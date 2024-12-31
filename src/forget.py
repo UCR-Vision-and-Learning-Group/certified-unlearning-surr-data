@@ -48,6 +48,8 @@ from copy import deepcopy
 import math
 from torch.nn.functional import softmax, one_hot
 from tqdm import tqdm
+import os
+import logging
 
 from src.utils import get_module_device
 from src.loss import L2RegularizedCrossEntropyLoss
@@ -122,10 +124,14 @@ def calculate_hessian(model, data_loader, criterion, save_path=None):
 
 
 # TODO: should be updated
-def calculate_retain_hess(model, wloader, floader, criterion, save_path=None):
+def calculate_retain_hess(model, wloader, floader, criterion, save_path=None, surr=False):
     if save_path is not None:
-        whess_sp = save_path.split('.')[0]+"_{}".format("whess.pt")
-        fhess_sp = save_path.split('.')[0] + "_{}".format("fhess.pt")
+        if surr:
+            whess_sp = os.path.join(save_path, "wshess.pt")
+            fhess_sp = os.path.join(save_path, "fshess.pt")
+        else:
+            whess_sp = os.path.join(save_path, "whess.pt")
+            fhess_sp = os.path.join(save_path, "fhess.pt")
     else:
         whess_sp = None
         fhess_sp = None
@@ -264,7 +270,7 @@ def set_noise(surr_size, forget_size, grad,
         upper = upper_retrain_app_unlearn
     sigma = upper / eps
     sigma = sigma * math.sqrt(2 * math.log(1.25 / delta))
-
+    logging.info(f"bound: {upper}, sigma: {sigma}")
     model_size = 0
     for size in prev_sizes:
         model_size += size[0] * size[1]
@@ -277,12 +283,11 @@ def set_noise(surr_size, forget_size, grad,
 #########################################
 
 
-def forget(model, whess_loader, fhess_loader, grad_loader, criterion, save_path=None,
+def forget(model, whess_loader, fhess_loader, grad_loader, criterion, device, save_path=None,
            eps=None, delta=None, smooth=1, sc=1, lip=1, hlip=1, surr=False,
            known=False, surr_loader=None, surr_model=None, kl_distance=None):
-    device = get_module_device(model)
     fmodel = deepcopy(model.to('cpu')).to(device)
-    hess = calculate_retain_hess(fmodel, whess_loader, fhess_loader, criterion, save_path=save_path)
+    hess = calculate_retain_hess(fmodel, whess_loader, fhess_loader, criterion, save_path=save_path, surr=surr)
     grads = calculate_grad(fmodel, grad_loader, criterion)
     update = calculate_update(hess, grads, device, len(whess_loader.dataset) - len(fhess_loader.dataset),
                               len(grad_loader.dataset))

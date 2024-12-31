@@ -648,6 +648,10 @@ class MoonsDataset(Dataset):
         return sample
 
 
+############ IMPORTANT PART STARTS HERE ######################
+
+# TODO: Mayber Hypercube and Ball dataset can be considered as synthetic experiments
+
 class GaussianDataset(Dataset):
     def __init__(self, n_samples, n_class, mean, cov, seed=42):
         self.n_samples = n_samples

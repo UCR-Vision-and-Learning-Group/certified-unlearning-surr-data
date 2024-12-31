@@ -4,7 +4,7 @@ from tqdm import tqdm
 from src.loss import L2RegularizedCrossEntropyLoss
 
 
-def evaluate(test_loader, model, criterion, device=None):
+def evaluate(test_loader, model, criterion, device=None, log=False):
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
@@ -24,3 +24,5 @@ def evaluate(test_loader, model, criterion, device=None):
             correct += predicted.eq(targets).sum().item()
             pbar.set_postfix(loss=loss.item(), acc=correct / total)
         pbar.close()
+    if log:
+        return correct / total
