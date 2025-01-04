@@ -14,3 +14,13 @@ def get_module_device(module):
         return next(module.parameters()).device
     except StopIteration:
         return next(module.buffers()).device
+
+
+def freeze_model(model):
+    for param in model.parameters():
+        param.requires_grad = False
+
+
+def melt_model(model):
+    for param in model.parameters():
+        param.requires_grad = True
