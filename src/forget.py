@@ -70,55 +70,120 @@ from src.dv import train_dv_bound
 #     return cumulative_cov / cumulative_size
 
 
-def calculate_hessian(model, data_loader, criterion, save_path=None):
+def calculate_linear_ce_hess(model, loader, l2_reg=0.0):
+    param = list(model.parameters())[0]
+    num_class, feat_dim = param.shape[0], param.shape[1]
+    device = get_module_device(model)
+    
+    total_H = None
+    total_samples = 0
+
+    with torch.no_grad():
+        # Compute Hessian
+        for batch_X, _ in  tqdm(loader, desc="Calculating Hessian", leave=True):
+            batch_X = batch_X.to(device)      # shape: [B, D]
+            logits = model(batch_X)          # shape: [B, C]
+            probs = torch.softmax(logits, 1) # shape: [B, C]
+            B = batch_X.size(0)
+
+            # -- Compute softmax Hessian term in class-space for the whole batch --
+            # softmax_grad[b] = diag(p[b]) - p[b].outer(p[b]) for each sample in batch
+            # Vectorized: [B, C, C]
+            softmax_grad = (
+                torch.diag_embed(probs) 
+                - torch.einsum('bi,bj->bij', probs, probs)
+            )
+            
+            # -- Compute (X_i X_i^T) for each sample in batch, shape: [B, D, D] --
+            # einsum('bi,bj->bij') or outer product per sample
+            xx_t = torch.einsum('bi,bj->bij', batch_X, batch_X)
+
+            # -- We want to sum of Kronecker( (D x D), (C x C) ) across all samples.
+            #   Flatten (D x D) to D^2 and (C x C) to C^2, multiply, and reshape back.
+            #   Then sum across B. 
+            # shape: [B, D*D]
+            # xx_t_flat = xx_t.view(B, feat_dim * feat_dim)
+            # shape: [B, C*C]
+            # softmax_grad_flat = softmax_grad.view(B, num_class * num_class)
+
+            # elementwise multiply + reshape => shape [B, (D*C)*(D*C)]
+            # then sum over B
+            # kron_batch = softmax_grad_flat.unsqueeze(2) * xx_t_flat.unsqueeze(1)
+            # kron_batch shape: [B, D*D, C*C]
+            softmax_grad = softmax_grad.to('cpu')
+            xx_t = xx_t.to('cpu')
+            kron_batch = softmax_grad.unsqueeze(2).unsqueeze(4) * xx_t.unsqueeze(1).unsqueeze(3)
+            kron_batch = kron_batch.view(B, feat_dim * num_class, feat_dim * num_class)
+
+            # Accumulate Hessian for this batch
+            batch_H = kron_batch.sum(dim=0)  # sum over samples in the batch
+            if total_H is None:
+                total_H = batch_H
+            else:
+                total_H += batch_H
+            total_samples += batch_X.shape[0]
+
+    # Normalize Hessian by total number of samples and add L2 regularization
+    total_H /= total_samples
+    total_H += 2 * l2_reg * torch.eye(feat_dim * num_class)
+    return total_H
+
+
+def calculate_hessian(model, data_loader, criterion, save_path=None, linear=False):
     """
     Compute the Hessian of the loss w.r.t. model parameters.
     """
-    device = get_module_device(model)
-    params = list(model.parameters())
-    num_params = sum(p.numel() for p in params)
-
-    # Create an empty Hessian on CPU
-    hessian_cpu = torch.zeros(num_params, num_params, dtype=torch.float32, device="cpu")
-    num_samples = 0
-
-    for batch in tqdm(data_loader, desc="Calculating Hessian", leave=True):
-        x, y = batch
-        x, y = x.to(device), y.to(device)
-        model.zero_grad()
-
-        # Forward pass
-        logits = model(x)
-        if isinstance(criterion, L2RegularizedCrossEntropyLoss):
-            loss = criterion(logits, y, model)
+    if linear:
+        if hasattr(criterion, 'l2_lambda'):
+            hessian_cpu = calculate_linear_ce_hess(model, data_loader, l2_reg=criterion.l2_lambda)
         else:
-            loss = criterion(logits, y)
+            hessian_cpu = calculate_linear_ce_hess(model, data_loader, l2_reg=0)
+    else:
+        device = get_module_device(model)
+        params = list(model.parameters())
+        num_params = sum(p.numel() for p in params)
 
-        # First-order gradients
-        grad_params = torch.autograd.grad(loss, params, create_graph=True, retain_graph=True)
-        grad_params_flat = torch.cat([g.view(-1) for g in grad_params])
+        # Create an empty Hessian on CPU
+        hessian_cpu = torch.zeros(num_params, num_params, dtype=torch.float32, device="cpu")
+        num_samples = 0
 
-        # Second-order gradients
-        batch_hessian_gpu = []
-        for g in grad_params_flat:
-            second_grad = torch.autograd.grad(
-                g, params, retain_graph=True, allow_unused=True
-            )
-            second_grad_flat = torch.cat([
-                sg.view(-1) if sg is not None else torch.zeros_like(p).view(-1)
-                for sg, p in zip(second_grad, params)
-            ])
-            batch_hessian_gpu.append(second_grad_flat)
+        for batch in tqdm(data_loader, desc="Calculating Hessian", leave=True):
+            x, y = batch
+            x, y = x.to(device), y.to(device)
+            model.zero_grad()
 
-        batch_hessian_gpu = torch.stack(batch_hessian_gpu)
+            # Forward pass
+            logits = model(x)
+            if isinstance(criterion, L2RegularizedCrossEntropyLoss):
+                loss = criterion(logits, y, model)
+            else:
+                loss = criterion(logits, y)
 
-        # Move the batch Hessian to CPU and accumulate
-        batch_hessian_cpu = batch_hessian_gpu.detach().to("cpu")
-        hessian_cpu = hessian_cpu + batch_hessian_cpu * x.shape[0]
-        num_samples = num_samples + x.shape[0]
+            # First-order gradients
+            grad_params = torch.autograd.grad(loss, params, create_graph=True, retain_graph=True)
+            grad_params_flat = torch.cat([g.view(-1) for g in grad_params])
 
-    # Average the Hessian
-    hessian_cpu = hessian_cpu / num_samples
+            # Second-order gradients
+            batch_hessian_gpu = []
+            for g in grad_params_flat:
+                second_grad = torch.autograd.grad(
+                    g, params, retain_graph=True, allow_unused=True
+                )
+                second_grad_flat = torch.cat([
+                    sg.view(-1) if sg is not None else torch.zeros_like(p).view(-1)
+                    for sg, p in zip(second_grad, params)
+                ])
+                batch_hessian_gpu.append(second_grad_flat)
+
+            batch_hessian_gpu = torch.stack(batch_hessian_gpu)
+
+            # Move the batch Hessian to CPU and accumulate
+            batch_hessian_cpu = batch_hessian_gpu.detach().to("cpu")
+            hessian_cpu = hessian_cpu + batch_hessian_cpu * x.shape[0]
+            num_samples = num_samples + x.shape[0]
+
+        # Average the Hessian
+        hessian_cpu = hessian_cpu / num_samples
 
     if save_path is not None:
         torch.save(hessian_cpu, save_path)
@@ -127,7 +192,7 @@ def calculate_hessian(model, data_loader, criterion, save_path=None):
 
 
 # TODO: should be updated
-def calculate_retain_hess(model, wloader, floader, criterion, save_path=None, surr=False):
+def calculate_retain_hess(model, wloader, floader, criterion, save_path=None, surr=False, linear=False):
     if save_path is not None:
         if surr:
             whess_sp = os.path.join(save_path, "wshess.pt")
@@ -138,8 +203,8 @@ def calculate_retain_hess(model, wloader, floader, criterion, save_path=None, su
     else:
         whess_sp = None
         fhess_sp = None
-    whess = calculate_hessian(model, wloader, criterion, save_path=whess_sp)
-    fhess = calculate_hessian(model, floader, criterion, save_path=fhess_sp)
+    whess = calculate_hessian(model, wloader, criterion, save_path=whess_sp, linear=linear)
+    fhess = calculate_hessian(model, floader, criterion, save_path=fhess_sp, linear=linear)
     wsize = len(wloader.dataset)
     fsize = len(floader.dataset)
     return (wsize * whess - fsize * fhess) / (wsize - fsize)
@@ -405,9 +470,9 @@ def set_noise(surr_size, forget_size, grad,
 
 def forget(model, whess_loader, fhess_loader, grad_loader, criterion, device, save_path=None,
            eps=None, delta=None, smooth=1, sc=1, lip=1, hlip=1, surr=False,
-           known=False, surr_loader=None, surr_model=None, kl_distance=None):
+           known=False, surr_loader=None, surr_model=None, kl_distance=None, linear=False):
     fmodel = deepcopy(model.to('cpu')).to(device)
-    hess = calculate_retain_hess(fmodel, whess_loader, fhess_loader, criterion, save_path=save_path, surr=surr)
+    hess = calculate_retain_hess(fmodel, whess_loader, fhess_loader, criterion, save_path=save_path, surr=surr, linear=linear)
     grads = calculate_grad(fmodel, grad_loader, criterion)
     update = calculate_update(hess, grads, device, len(whess_loader.dataset) - len(fhess_loader.dataset),
                               len(grad_loader.dataset))
