@@ -42,7 +42,17 @@ def train_dv_bound(ploader, qloader, device, num_epoch=100):
     for epoch in range(num_epoch):  # Adjust epochs as needed
         dv_loss_epoch = 0
 
-        for (p_batch, _), (q_batch,) in zip(ploader, qloader_cycle):
+        for (p_batch), (q_batch) in zip(ploader, qloader_cycle):
+            if len(p_batch) > 1:
+                (p_batch, _) = p_batch
+            else:
+                (p_batch,) = p_batch
+
+            if len(q_batch) > 1:
+                (q_batch, _) = q_batch
+            else:
+                (q_batch,) = q_batch
+
             p_batch, q_batch = p_batch.to(device), q_batch.to(device)  # Move data to GPU
 
             # Compute DV KL divergence

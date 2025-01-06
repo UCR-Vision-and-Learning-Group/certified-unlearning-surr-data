@@ -85,6 +85,7 @@ def calculate_hessian(model, data_loader, criterion, save_path=None):
     for batch in tqdm(data_loader, desc="Calculating Hessian", leave=True):
         x, y = batch
         x, y = x.to(device), y.to(device)
+        model.zero_grad()
 
         # Forward pass
         logits = model(x)
@@ -113,11 +114,11 @@ def calculate_hessian(model, data_loader, criterion, save_path=None):
 
         # Move the batch Hessian to CPU and accumulate
         batch_hessian_cpu = batch_hessian_gpu.detach().to("cpu")
-        hessian_cpu += batch_hessian_cpu
-        num_samples += 1
+        hessian_cpu = hessian_cpu + batch_hessian_cpu * x.shape[0]
+        num_samples = num_samples + x.shape[0]
 
     # Average the Hessian
-    hessian_cpu /= num_samples
+    hessian_cpu = hessian_cpu / num_samples
 
     if save_path is not None:
         torch.save(hessian_cpu, save_path)
@@ -169,7 +170,7 @@ def calculate_grad(model, loader, criterion):
         loss.backward()
         curr_grads = [param.grad.clone().detach().to('cpu') for param in model.parameters()]
         grads = _accumulate_grads(grads, curr_grads, total_size, total_size + data.shape[0])
-        total_size += data.shape[0]
+        total_size = total_size + data.shape[0]
     return grads
 
 
@@ -328,6 +329,8 @@ def calculate_upper_tv(known=False, surr_loader=None, model=None, surr_model=Non
     if known:
         app_up_cross = approximate_upper_cross_entropy(surr_loader, model, surr_model)
         app_kl = app_up_cross + kl_distance
+        if app_kl < 0:
+            app_kl = 0
         upper_tv = 2 * brategnolle_huber(app_kl)
         print(upper_tv)
     elif surr_loader is not None:
