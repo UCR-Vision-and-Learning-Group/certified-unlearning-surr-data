@@ -17,13 +17,17 @@ from src.train import train
 from src.eval import evaluate
 from src.forget import forget
 
+
 def log_eval(model, train_loader, val_loader, retain_loader, forget_loader, surr_loader, criterion, device):
     train_acc = evaluate(train_loader, model, criterion, device=device, log=True)
     test_acc = evaluate(val_loader, model, criterion, device=device, log=True)
     retain_acc = evaluate(retain_loader, model, criterion, device=device, log=True)
     forget_acc = evaluate(forget_loader, model, criterion, device=device, log=True)
     surr_acc = evaluate(surr_loader, model, criterion, device=device, log=True)
-    logging.info('train: {}, test: {}, retain: {}, forget: {}, surrogate:{}'.format(train_acc, test_acc, retain_acc, forget_acc, surr_acc))
+    logging.info(
+        'train: {}, test: {}, retain: {}, forget: {}, surrogate:{}'.format(train_acc, test_acc, retain_acc, forget_acc,
+                                                                           surr_acc))
+
 
 def return_model(model_config, dim, num_class):
     if model_config['type'] == 'mlp':
@@ -42,12 +46,14 @@ def return_model(model_config, dim, num_class):
             model = nn.Linear(dim, num_class, bias=bias)
         return model
 
-def replace_none_with_None(d):
+
+def replace_none_with_none(d):
     for k, v in d.items():
         if isinstance(v, dict):
-            replace_none_with_None(v)
+            replace_none_with_none(v)
         elif v == 'none':
             d[k] = None
+
 
 def main():
     parser = argparse.ArgumentParser(description='wrapper of all synthetic experiments')
@@ -57,7 +63,7 @@ def main():
     # read config set experiment
     with open(args.config, 'r') as file:
         config = yaml.safe_load(file)
-    replace_none_with_None(config)
+    replace_none_with_none(config)
     base_save_dir = config['setup']['base_save_dir']
     if not os.path.exists(base_save_dir):
         os.makedirs(base_save_dir)
@@ -72,7 +78,7 @@ def main():
     with open(config_copy_path, 'w') as file:
         yaml.safe_dump(config, file)
     logging.info('configuration file copied to %s', config_copy_path)
-    
+
     # set seed
     seed = config['setup']['seed']
     set_seed(seed)
@@ -104,10 +110,10 @@ def main():
         kl_distance = surr_dataset.calculate_kl_between(dataset)
     logging.info('exact and surrogate dataset created')
     logging.info('exact dataset size: {}, dim: {}'.format(num_samples, dim))
-    logging.info('surrogate dataset size: {}, dim: {}, off_cov: {}'.format(num_samples, dim, off_cov))   
+    logging.info('surrogate dataset size: {}, dim: {}, off_cov: {}'.format(num_samples, dim, off_cov))
     logging.info('kl distance between surrogate and exact marginal distributions: {}'.format(kl_distance))
     logging.info('#####################')
-    
+
     logging.info('#####################')
     logging.info('training setup')
     # train
@@ -123,8 +129,11 @@ def main():
     surr_loader = get_dataloaders(surr_dataset, train_config['batch_size'])
 
     logging.info('all dataloaders created')
-    logging.info('test ratio: {}, train dataset size: {}, test dataset size: {}'.format(test_ratio, len(train_dataset), len(test_dataset)))
-    logging.info('forget ratio: {}, retain dataset size: {}, forget dataset size: {}'.format(forget_ratio, len(retain_dataset), len(forget_dataset)))
+    logging.info('test ratio: {}, train dataset size: {}, test dataset size: {}'.format(test_ratio, len(train_dataset),
+                                                                                        len(test_dataset)))
+    logging.info(
+        'forget ratio: {}, retain dataset size: {}, forget dataset size: {}'.format(forget_ratio, len(retain_dataset),
+                                                                                    len(forget_dataset)))
 
     lambda_param = train_config['lambda']
     criterion = L2RegularizedCrossEntropyLoss(lambda_param)
@@ -193,13 +202,15 @@ def main():
     hlip = unlearn_config['hlip']
     surr = unlearn_config['surr']
     known = unlearn_config['known']
-     
+
     # unlearn with exact
     logging.info('#####################')
     logging.info('UNLEARN WITH EXACT')
-    logging.info('noise --> eps_multiplier: {}, eps_power: {}, delta: {}, smooth: {}, sc: {}, lip: {}, hlip: {}'.format(forget_ratio, eps_multiplier, eps_power, delta, smooth, sc, lip, hlip))
+    logging.info('noise --> eps_multiplier: {}, eps_power: {}, delta: {}, smooth: {}, sc: {}, lip: {}, hlip: {}'.format(
+        forget_ratio, eps_multiplier, eps_power, delta, smooth, sc, lip, hlip))
     eps = eps_multiplier * (math.e ** eps_power)
-    umodel = forget(model, train_loader, forget_loader, forget_loader, criterion, device, save_path=experiment_dir, eps=eps, delta=delta, smooth=smooth, sc=sc, lip=lip, hlip=hlip)
+    umodel = forget(model, train_loader, forget_loader, forget_loader, criterion, device, save_path=experiment_dir,
+                    eps=eps, delta=delta, smooth=smooth, sc=sc, lip=lip, hlip=hlip)
     log_eval(umodel, train_loader, test_loader, retain_loader, forget_loader, surr_loader, criterion, device)
     umodel = umodel.to('cpu')
     model_save_path = os.path.join(experiment_dir, 'uexact_model.pth')
@@ -211,9 +222,12 @@ def main():
         # unlearn with surrogate
         logging.info('#####################')
         logging.info('UNLEARN WITH SURROGATE')
-        logging.info('noise --> eps_multiplier: {}, eps_power: {}, delta: {}, smooth: {}, sc: {}, lip: {}, hlip: {}, kl_distance: {}'.format(forget_ratio, eps_multiplier, eps_power, delta, smooth, sc, lip, hlip, kl_distance))
+        logging.info(
+            'noise --> eps_multiplier: {}, eps_power: {}, delta: {}, smooth: {}, sc: {}, lip: {}, hlip: {}, kl_distance: {}'.format(
+                forget_ratio, eps_multiplier, eps_power, delta, smooth, sc, lip, hlip, kl_distance))
         smodel = smodel.to(device)
-        usmodel = forget(model, surr_loader, forget_loader, forget_loader, criterion, device, save_path=experiment_dir, eps=eps, delta=delta, smooth=smooth, sc=sc, lip=lip, hlip=hlip, surr=surr,
+        usmodel = forget(model, surr_loader, forget_loader, forget_loader, criterion, device, save_path=experiment_dir,
+                         eps=eps, delta=delta, smooth=smooth, sc=sc, lip=lip, hlip=hlip, surr=surr,
                          known=known, surr_loader=surr_loader, surr_model=smodel, kl_distance=kl_distance)
         log_eval(usmodel, train_loader, test_loader, retain_loader, forget_loader, surr_loader, criterion, device)
         usmodel = usmodel.to('cpu')
