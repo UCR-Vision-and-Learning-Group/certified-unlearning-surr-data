@@ -30,7 +30,7 @@ def dv_kl_divergence(p_samples, q_samples, f_theta):
     return dv_bound
 
 
-def train_dv_bound(ploader, qloader, device, num_epoch=100):
+def train_dv_bound(ploader, qloader, device, num_epoch=50):
     (tmp,) = next(iter(qloader))
     shape = tmp.shape[1:]
     input_dim = 1
