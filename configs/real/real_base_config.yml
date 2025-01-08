@@ -1,0 +1,58 @@
+# experiment setup
+setup:
+  seed: 42
+  device: 0
+  base_save_dir: ./results/real
+  about: data-dirichlet
+
+# exact surrogate dataset initialization
+data:
+  exact_dataset: cifar10-act
+  surrogate_dataset: none
+  dim: 512
+  num_class: 10
+  dirichlet: 10
+  train_path: /home/umityigitbsrn/Desktop/umityigitbsrn/certified-unlearning-surr-data/data/cifar10_linear_resnet18_train.pth
+  test_path: /home/umityigitbsrn/Desktop/umityigitbsrn/certified-unlearning-surr-data/data/cifar10_linear_resnet18_test.pth
+  save_path: none
+  strain_path: none
+  stest_path: none
+  ssave_path: none
+
+# training related
+train:
+  batch_size: 256
+  lambda: 0.01
+  model:
+    type: mlp
+    hidden_sizes: none
+    activation: none
+    bias: false
+  lr: 0.001
+  num_epochs: 10
+
+langevin:
+  num_samples: 500
+  input_size:
+    - 512
+  batch_size: 256
+  input_range:
+    - 0
+    - 12
+  max_iter: 1000
+  step_size: 0.02
+
+unlearn:
+  # unlearning related
+  forget_ratio: 0.1
+  # noise related
+  eps_multiplier: 5
+  eps_power: 3
+  delta: 1
+  smooth: 1
+  sc: 1
+  lip: 1
+  hlip: 1
+  surr: true
+  known: true
+  linear: true
