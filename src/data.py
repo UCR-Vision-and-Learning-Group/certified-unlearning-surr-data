@@ -231,7 +231,7 @@ def get_exact_surr_datasets(dataset,
     elif dirichlet is not None:
         # generate class proportions for both exact and surrogate datasets
         client_class_distributions = np.random.dirichlet(dirichlet * np.ones(num_class), size=2)
-        print(client_class_distributions)
+        # print(client_class_distributions)
         return get_exact_surr_datasets(dataset, target_size=target_size, target_ratios=client_class_distributions[0],
                                        starget_size=starget_size, starget_ratios=client_class_distributions[1])
 

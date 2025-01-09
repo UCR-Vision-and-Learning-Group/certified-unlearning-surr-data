@@ -15,6 +15,7 @@ from src.loss import L2RegularizedCrossEntropyLoss
 from src.train import train
 from src.eval import evaluate
 from src.forget import forget, sample_from_exact_marginal, estimate_marginal_kl_distance
+from src.metrics import membership_inference_attack, relearn_time
 
 
 def log_eval(model, train_loader, val_loader, retain_loader, forget_loader, surr_loader, criterion, device):
@@ -26,6 +27,7 @@ def log_eval(model, train_loader, val_loader, retain_loader, forget_loader, surr
     logging.info(
         'train: {}, test: {}, retain: {}, forget: {}, surrogate:{}'.format(train_acc, test_acc, retain_acc, forget_acc,
                                                                            surr_acc))
+    return train_acc
 
 
 def return_model(model_config, dim, num_class):
@@ -168,7 +170,7 @@ def main():
     logging.info('#####################')
     logging.info('INITIAL TRAINING')
     train(train_loader, test_loader, model, criterion, optimizer, num_epoch=num_epochs, device=device)
-    log_eval(model, train_loader, test_loader, retain_loader, forget_loader, surr_loader, criterion, device)
+    target_acc = log_eval(model, train_loader, test_loader, retain_loader, forget_loader, surr_loader, criterion, device)
     egensample_loader = sample_from_exact_marginal(model, langevin_config['num_samples'],
                                                    langevin_config['input_size'],
                                                    train_config['batch_size'],
@@ -217,6 +219,11 @@ def main():
     optimizer = torch.optim.Adam(rmodel.parameters(), lr=train_config['lr'])
     train(retain_loader, test_loader, rmodel, criterion, optimizer, num_epoch=num_epochs, device=device)
     log_eval(rmodel, train_loader, test_loader, retain_loader, forget_loader, surr_loader, criterion, device)
+    mia_score = membership_inference_attack(rmodel, test_loader, forget_loader)
+    logging.info('MIA {}'.format(mia_score))
+    required_iters = relearn_time(rmodel, criterion, train_loader, forget_loader, lr=train_config['lr'],
+                                  target_acc=target_acc)
+    logging.info('relearn time T {}'.format(required_iters))
     rmodel = rmodel.to('cpu')
     model_save_path = os.path.join(experiment_dir, 'retrained_model.pth')
     torch.save(rmodel.state_dict(), model_save_path)
@@ -236,16 +243,24 @@ def main():
     surr = unlearn_config['surr']
     known = unlearn_config['known']
     linear = unlearn_config['linear']
+    parallel = unlearn_config['parallel']
+    cov = unlearn_config['cov']
 
     # unlearn with exact
     logging.info('#####################')
     logging.info('UNLEARN WITH EXACT')
     logging.info('noise --> eps_multiplier: {}, eps_power: {}, delta: {}, smooth: {}, sc: {}, lip: {}, hlip: {}'.format(
-        forget_ratio, eps_multiplier, eps_power, delta, smooth, sc, lip, hlip))
+        eps_multiplier, eps_power, delta, smooth, sc, lip, hlip))
     eps = eps_multiplier * (math.e ** eps_power)
     umodel = forget(model, train_loader, forget_loader, forget_loader, criterion, device, save_path=experiment_dir,
-                    eps=eps, delta=delta, smooth=smooth, sc=sc, lip=lip, hlip=hlip, linear=linear)
+                    eps=eps, delta=delta, smooth=smooth, sc=sc, lip=lip, hlip=hlip, linear=linear,
+                    parallel=parallel, cov=cov)
     log_eval(umodel, train_loader, test_loader, retain_loader, forget_loader, surr_loader, criterion, device)
+    mia_score = membership_inference_attack(umodel, test_loader, forget_loader)
+    logging.info('MIA {}'.format(mia_score))
+    required_iters = relearn_time(umodel, criterion, train_loader, forget_loader, lr=train_config['lr'],
+                                  target_acc=target_acc)
+    logging.info('relearn time T {}'.format(required_iters))
     umodel = umodel.to('cpu')
     model_save_path = os.path.join(experiment_dir, 'uexact_model.pth')
     torch.save(umodel.state_dict(), model_save_path)
@@ -258,15 +273,20 @@ def main():
         logging.info('UNLEARN WITH SURROGATE')
         logging.info(
             'noise --> eps_multiplier: {}, eps_power: {}, delta: {}, smooth: {}, sc: {}, lip: {}, hlip: {}, kl_distance: {}'.format(
-                forget_ratio, eps_multiplier, eps_power, delta, smooth, sc, lip, hlip, kl_distance))
+                eps_multiplier, eps_power, delta, smooth, sc, lip, hlip, kl_distance))
         smodel = smodel.to(device)
         usmodel = forget(model, surr_loader, forget_loader, forget_loader, criterion, device, save_path=experiment_dir,
                          eps=eps, delta=delta, smooth=smooth, sc=sc, lip=lip, hlip=hlip, surr=surr,
                          known=known, surr_loader=surr_loader, surr_model=smodel, kl_distance=kl_distance,
-                         linear=linear)
+                         linear=linear, parallel=parallel, cov=cov)
         log_eval(usmodel, train_loader, test_loader, retain_loader, forget_loader, surr_loader, criterion, device)
-        usmodel = usmodel.to('cpu')
         smodel = smodel.to('cpu')
+        mia_score = membership_inference_attack(usmodel, test_loader, forget_loader)
+        logging.info('MIA {}'.format(mia_score))
+        required_iters = relearn_time(usmodel, criterion, train_loader, forget_loader, lr=train_config['lr'],
+                                      target_acc=target_acc)
+        logging.info('relearn time T {}'.format(required_iters))
+        usmodel = usmodel.to('cpu')
         model_save_path = os.path.join(experiment_dir, 'usurr_model.pth')
         torch.save(usmodel.state_dict(), model_save_path)
         logging.info('unlearn with surrogate model state dict saved to %s', model_save_path)

@@ -202,15 +202,19 @@ def main():
     hlip = unlearn_config['hlip']
     surr = unlearn_config['surr']
     known = unlearn_config['known']
+    linear = unlearn_config['linear']
+    parallel = unlearn_config['parallel']
+    cov = unlearn_config['cov']
 
     # unlearn with exact
     logging.info('#####################')
     logging.info('UNLEARN WITH EXACT')
     logging.info('noise --> eps_multiplier: {}, eps_power: {}, delta: {}, smooth: {}, sc: {}, lip: {}, hlip: {}'.format(
-        forget_ratio, eps_multiplier, eps_power, delta, smooth, sc, lip, hlip))
+        eps_multiplier, eps_power, delta, smooth, sc, lip, hlip))
     eps = eps_multiplier * (math.e ** eps_power)
     umodel = forget(model, train_loader, forget_loader, forget_loader, criterion, device, save_path=experiment_dir,
-                    eps=eps, delta=delta, smooth=smooth, sc=sc, lip=lip, hlip=hlip)
+                    eps=eps, delta=delta, smooth=smooth, sc=sc, lip=lip, hlip=hlip,
+                    linear=linear, parallel=parallel, cov=cov)
     log_eval(umodel, train_loader, test_loader, retain_loader, forget_loader, surr_loader, criterion, device)
     umodel = umodel.to('cpu')
     model_save_path = os.path.join(experiment_dir, 'uexact_model.pth')
@@ -224,11 +228,12 @@ def main():
         logging.info('UNLEARN WITH SURROGATE')
         logging.info(
             'noise --> eps_multiplier: {}, eps_power: {}, delta: {}, smooth: {}, sc: {}, lip: {}, hlip: {}, kl_distance: {}'.format(
-                forget_ratio, eps_multiplier, eps_power, delta, smooth, sc, lip, hlip, kl_distance))
+                eps_multiplier, eps_power, delta, smooth, sc, lip, hlip, kl_distance))
         smodel = smodel.to(device)
         usmodel = forget(model, surr_loader, forget_loader, forget_loader, criterion, device, save_path=experiment_dir,
                          eps=eps, delta=delta, smooth=smooth, sc=sc, lip=lip, hlip=hlip, surr=surr,
-                         known=known, surr_loader=surr_loader, surr_model=smodel, kl_distance=kl_distance)
+                         known=known, surr_loader=surr_loader, surr_model=smodel, kl_distance=kl_distance,
+                         linear=linear, parallel=parallel, cov=cov)
         log_eval(usmodel, train_loader, test_loader, retain_loader, forget_loader, surr_loader, criterion, device)
         usmodel = usmodel.to('cpu')
         smodel = smodel.to('cpu')

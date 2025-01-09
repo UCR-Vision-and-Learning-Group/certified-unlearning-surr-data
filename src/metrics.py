@@ -2,41 +2,18 @@ import torch
 import torch.nn as nn
 
 from tqdm import tqdm
-from src.loss import L2RegularizedCrossEntropyLoss
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.metrics import confusion_matrix
 import random
+from copy import deepcopy
 
 import numpy as np
 # import matplotlib.pyplot as plt
 # import seaborn as sns
 from src.utils import get_module_device
-
-def evaluate(test_loader, model, criterion, device=None, log=False):
-    if device is None:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.eval()
-    pbar = tqdm(test_loader, desc='eval', unit='batch')
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        for inputs, targets in pbar:
-            inputs, targets = inputs.to(device), targets.to(device)
-            outputs = model(inputs)
-            if isinstance(criterion, L2RegularizedCrossEntropyLoss):
-                loss = criterion(outputs, targets, model)
-            else:
-                loss = criterion(outputs, targets)
-            _, predicted = outputs.max(1)
-            total += targets.size(0)
-            correct += predicted.eq(targets).sum().item()
-            pbar.set_postfix(loss=loss.item(), acc=correct / total)
-        pbar.close()
-    if log:
-        return correct / total
-
+from src.train import train
 
 def cm_score(estimator, X, y):
     y_pred = estimator.predict(X)
@@ -98,10 +75,10 @@ def evaluate_attack_model(sample_loss,
 
 def membership_inference_attack(model, t_loader, f_loader, seed=42):
     device = get_module_device(model)
-    fgt_cls = list(np.unique(f_loader.dataset.targets))
-    indices = [i in fgt_cls for i in t_loader.dataset.targets]
-    t_loader.dataset.data = t_loader.dataset.data[indices]
-    t_loader.dataset.targets = t_loader.dataset.targets[indices]
+    # fgt_cls = list(np.unique(f_loader.dataset.targets))
+    # indices = [i in fgt_cls for i in t_loader.dataset.targets]
+    # t_loader.dataset.data = t_loader.dataset.data[indices]
+    # t_loader.dataset.targets = t_loader.dataset.targets[indices]
 
     cr = nn.CrossEntropyLoss(reduction='none')
     test_losses = []
@@ -148,3 +125,12 @@ def membership_inference_attack(model, t_loader, f_loader, seed=42):
     score = evaluate_attack_model(features, labels, n_splits=5, random_state=seed)
 
     return score
+
+
+def relearn_time(model, criterion, tloader, floader, target_acc, lr=1e-3):
+    device = get_module_device(model)
+    relearn_model = deepcopy(model.to('cpu')).to(device)
+    optimizer = torch.optim.Adam(relearn_model.parameters(), lr=lr)
+    required_iter = train(floader, tloader, relearn_model, criterion, optimizer, target_acc=target_acc)
+    del relearn_model
+    return required_iter

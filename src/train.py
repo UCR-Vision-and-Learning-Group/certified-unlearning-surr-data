@@ -6,6 +6,8 @@ from tqdm import tqdm
 from src.eval import evaluate
 from src.loss import L2RegularizedCrossEntropyLoss
 from archive.vae import loss_function
+import math
+from src.utils import get_module_device
 
 
 def train_epoch(train_loader, model, criterion, optimizer, epoch, device):
@@ -24,13 +26,18 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, device):
     pbar.close()
 
 
-def train(train_loader, val_loader, model, criterion, optimizer, num_epoch=10, device=None):
-    if device is None:
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+def train(train_loader, val_loader, model, criterion, optimizer, num_epoch=10, device=None, target_acc=None,
+          threshold=0.05):
+    device = get_module_device(model)
     model.train()
     for epoch in range(num_epoch):
         train_epoch(train_loader, model, criterion, optimizer, epoch=epoch, device=device)
-        evaluate(val_loader, model, criterion, device=device)
+        if target_acc is None:
+            evaluate(val_loader, model, criterion, device=device)
+        else:
+            acc = evaluate(val_loader, model, criterion, device=device, log=True)
+            if abs(target_acc - acc) < threshold:
+                return (epoch + 1) * len(train_loader.dataset)
 
 
 def train_vae(train_loader, vae, optimizer, num_epoch=10, device=None):
