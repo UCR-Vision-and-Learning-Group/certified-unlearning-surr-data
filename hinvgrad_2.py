@@ -86,7 +86,7 @@ def batched_hvp(model, dataloader, criterion, params, vector, device):
 
 
 # Conjugate gradient method for solving H^-1 * grad
-def conjugate_gradient(hvp_fn, b, tol=1e-6, max_iter=1):
+def conjugate_gradient(hvp_fn, b, tol=1e-6, max_iter=100):
     x = torch.zeros_like(b)
     r = b.clone()
     p = r.clone()
@@ -144,7 +144,7 @@ def main():
 
     # Train the model
     print("Training the model...")
-    for epoch in range(1):
+    for epoch in range(10):
         model.train()
         for X_batch, y_batch in tqdm(train_loader, desc=f"Epoch {epoch + 1}/10"):
             X_batch, y_batch = X_batch.to(device), y_batch.to(device)
