@@ -56,6 +56,97 @@ from src.utils import get_module_device, freeze_model, melt_model
 from src.loss import L2RegularizedCrossEntropyLoss
 from src.dv import train_dv_bound
 
+def batched_hvp(model, dataloader, criterion, params, vector, device):
+    hvp_result = None
+    total_item = 0
+    for X_batch, y_batch in tqdm(dataloader, desc="Computing HVP"):
+        X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+        outputs = model(X_batch)
+        if hasattr(criterion, 'l2_lambda'):
+            loss = criterion(outputs, y_batch, model)
+        else:
+            loss = criterion(outputs, y_batch)
+        gradients = torch.autograd.grad(loss, params, create_graph=True)
+        grad_vector = torch.cat([g.view(-1) for g in gradients if g is not None])
+        hvp_batch = torch.autograd.grad(grad_vector, params, grad_outputs=vector, retain_graph=True)
+        hvp_batch = torch.cat([h.reshape(-1) for h in hvp_batch if h is not None])
+
+        if hvp_result is None:
+            hvp_result = (hvp_batch * X_batch.shape[0])
+        else:
+            hvp_result += (hvp_batch * X_batch.shape[0])
+        total_item += X_batch.shape[0]
+    return hvp_result / total_item
+
+
+def conjugate_gradient(hvp_fn, b, tol=1e-6, max_iter=100):
+    x = torch.zeros_like(b)
+    r = b.clone()
+    p = r.clone()
+    rs_old = torch.dot(r, r)
+
+    for i in range(max_iter):
+        Ap = hvp_fn(p)
+        alpha = rs_old / torch.dot(p, Ap)
+        x += alpha * p
+        r -= alpha * Ap
+        rs_new = torch.dot(r, r)
+        print('norm of the conjugate gradient: {}'.format(torch.sqrt(rs_new)))
+
+        if torch.sqrt(rs_new) < tol:
+            print(f"Conjugate gradient converged in {i+1} iterations.")
+            break
+
+        p = r + (rs_new / rs_old) * p
+        rs_old = rs_new
+
+    return x
+
+
+def ihvp(model, hloader, gloader, criterion):
+    device = get_module_device(model)
+
+    # Compute the overall gradient on the subset
+    hsize = len(hloader.dataset)
+    gsize = len(gloader.dataset)
+    print("Computing overall gradient...")
+    params = list(model.parameters())
+    overall_gradient = None
+    total_size = 0
+    for X_batch, y_batch in tqdm(gloader, desc="Computing Gradient on Forget"):
+        X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+        outputs = model(X_batch)
+        if hasattr(criterion, 'l2_lambda'):
+            loss = criterion(outputs, y_batch, model)
+        else:
+            loss = criterion(outputs, y_batch)
+        gradients = torch.autograd.grad(loss, params)
+        grad_vector = torch.cat([g.view(-1) for g in gradients if g is not None])
+
+        if overall_gradient is None:
+            overall_gradient = (grad_vector * X_batch.shape[0])
+        else:
+            overall_gradient += (grad_vector * X_batch.shape[0])
+        total_size += X_batch.shape[0]
+    overall_gradient /= total_size
+
+    overall_gradient = -(gsize / (hsize - gsize)) * overall_gradient
+
+    # Define HVP function for the subset
+    def hvp_fn_train(v):
+        return batched_hvp(model, hloader, criterion, params, v, device)
+
+    def hvp_fn_forget(v):
+        return batched_hvp(model, gloader, criterion, params, v, device)
+
+    # Solve H^-1 * grad using conjugate gradient
+    print("Solving for H^-1 * grad...")
+    htrain_inv_grad = conjugate_gradient(hvp_fn_train, overall_gradient).to('cpu')
+    hforget_inv_grad = conjugate_gradient(hvp_fn_forget, overall_gradient).to('cpu')
+    h_inv_grad = (hsize * htrain_inv_grad - gsize * hforget_inv_grad) / (
+                hsize - gsize)
+    return overall_gradient.to('cpu'), h_inv_grad
+
 
 def batched_kronecker_product(A, B):
     """
@@ -599,14 +690,29 @@ def set_noise(surr_size, forget_size, grad,
 def forget(model, whess_loader, fhess_loader, grad_loader, criterion, device, save_path=None,
            eps=None, delta=None, smooth=1, sc=1, lip=1, hlip=1, surr=False,
            known=False, surr_loader=None, surr_model=None, kl_distance=None, linear=False, parallel=False, cov=False,
-           alpha=1):
-    fmodel = deepcopy(model.to('cpu')).to(device)
-    hess = calculate_retain_hess(fmodel, whess_loader, fhess_loader, criterion, save_path=save_path, surr=surr,
-                                 linear=linear, parallel=parallel, cov=cov, alpha=alpha)
-    grads = calculate_grad(fmodel, grad_loader, criterion)
-    update = calculate_update(hess, grads, device, len(whess_loader.dataset) - len(fhess_loader.dataset),
-                              len(grad_loader.dataset), cov=cov)
-    update_model(fmodel, update)
+           alpha=1, conjugate=True):
+
+    fmodel = deepcopy(model.to('cpu'))
+    if conjugate:
+        _, update = ihvp(model, whess_loader, fhess_loader, criterion)
+        grads = calculate_grad(fmodel, grad_loader, criterion)
+        print("Updating model parameters using H^-1 * grad...")
+        offset = 0
+        for param in fmodel.parameters():
+            param_size = param.numel()
+            param_update = update[offset: offset + param_size].view(param.size())
+            param.data -= param_update
+            offset += param_size
+        fmodel = fmodel.to(device)
+
+    else:
+        hess = calculate_retain_hess(fmodel, whess_loader, fhess_loader, criterion, save_path=save_path, surr=surr,
+                                     linear=linear, parallel=parallel, cov=cov, alpha=alpha)
+        grads = calculate_grad(fmodel, grad_loader, criterion)
+        update = calculate_update(hess, grads, device, len(whess_loader.dataset) - len(fhess_loader.dataset),
+                                  len(grad_loader.dataset), cov=cov)
+        update_model(fmodel, update)
+
     if eps is not None and delta is not None:
         model = model.to(device)
         noise = set_noise(len(whess_loader.dataset), len(fhess_loader.dataset), grads, eps, delta,

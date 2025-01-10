@@ -249,6 +249,7 @@ def main():
         alpha = unlearn_config['alpha']
     else:
         alpha = 1
+    conjugate = unlearn_config['conjugate']
 
     # unlearn with exact
     logging.info('#####################')
@@ -258,7 +259,7 @@ def main():
     eps = eps_multiplier * (math.e ** eps_power)
     umodel = forget(model, train_loader, forget_loader, forget_loader, criterion, device, save_path=experiment_dir,
                     eps=eps, delta=delta, smooth=smooth, sc=sc, lip=lip, hlip=hlip, linear=linear,
-                    parallel=parallel, cov=cov, alpha=alpha)
+                    parallel=parallel, cov=cov, alpha=alpha, conjugate=conjugate)
     log_eval(umodel, train_loader, test_loader, retain_loader, forget_loader, surr_loader, criterion, device)
     mia_score = membership_inference_attack(umodel, test_loader, forget_loader)
     logging.info('MIA {}'.format(mia_score))
@@ -282,7 +283,7 @@ def main():
         usmodel = forget(model, surr_loader, forget_loader, forget_loader, criterion, device, save_path=experiment_dir,
                          eps=eps, delta=delta, smooth=smooth, sc=sc, lip=lip, hlip=hlip, surr=surr,
                          known=known, surr_loader=surr_loader, surr_model=smodel, kl_distance=kl_distance,
-                         linear=linear, parallel=parallel, cov=cov, alpha=alpha)
+                         linear=linear, parallel=parallel, cov=cov, alpha=alpha, conjugate=conjugate)
         log_eval(usmodel, train_loader, test_loader, retain_loader, forget_loader, surr_loader, criterion, device)
         smodel = smodel.to('cpu')
         mia_score = membership_inference_attack(usmodel, test_loader, forget_loader)
