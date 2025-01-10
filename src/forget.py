@@ -104,7 +104,7 @@ def batched_outer(A, B):
     return A * B
 
 
-def calculate_cov(loader, device):
+def calculate_cov(loader, device, alpha=1):
     cumulative_cov = None
     cumulative_size = 0
     for data, _ in tqdm(loader, desc="Calculating Hessian", leave=True):
@@ -114,10 +114,10 @@ def calculate_cov(loader, device):
         else:
             cumulative_cov += (data.T @ data).clone().detach().to('cpu')
         cumulative_size = cumulative_size + data.shape[0]
-    return cumulative_cov / cumulative_size
+    return alpha * (cumulative_cov / cumulative_size)
 
 
-def calculate_linear_ce_hess(model, loader, l2_reg=0.0, parallel=False, cov=False):
+def calculate_linear_ce_hess(model, loader, l2_reg=0.0, parallel=False, cov=False, alpha=1):
     param = list(model.parameters())[0]
     num_class, feat_dim = param.shape[0], param.shape[1]
     device = get_module_device(model)
@@ -185,7 +185,7 @@ def calculate_linear_ce_hess(model, loader, l2_reg=0.0, parallel=False, cov=Fals
         return total_H
     elif cov:
         device = get_module_device(model)
-        block = calculate_cov(loader, device)
+        block = calculate_cov(loader, device, alpha=alpha)
         return block + 2 * l2_reg * torch.eye(feat_dim)
     else:
         total_H = None
@@ -242,17 +242,17 @@ def calculate_linear_ce_hess(model, loader, l2_reg=0.0, parallel=False, cov=Fals
         return total_H
 
 
-def calculate_hessian(model, data_loader, criterion, save_path=None, linear=False, parallel=False, cov=False):
+def calculate_hessian(model, data_loader, criterion, save_path=None, linear=False, parallel=False, cov=False, alpha=1):
     """
     Compute the Hessian of the loss w.r.t. model parameters.
     """
     if linear:
         if hasattr(criterion, 'l2_lambda'):
             hessian_cpu = calculate_linear_ce_hess(model, data_loader, l2_reg=criterion.l2_lambda,
-                                                   parallel=parallel, cov=cov)
+                                                   parallel=parallel, cov=cov, alpha=alpha)
         else:
             hessian_cpu = calculate_linear_ce_hess(model, data_loader, l2_reg=0,
-                                                   parallel=parallel, cov=cov)
+                                                   parallel=parallel, cov=cov, alpha=alpha)
     else:
         device = get_module_device(model)
         params = list(model.parameters())
@@ -308,7 +308,7 @@ def calculate_hessian(model, data_loader, criterion, save_path=None, linear=Fals
 
 # TODO: should be updated
 def calculate_retain_hess(model, wloader, floader, criterion, save_path=None, surr=False, linear=False,
-                          parallel=False, cov=False):
+                          parallel=False, cov=False, alpha=1):
     if save_path is not None:
         if surr:
             whess_sp = os.path.join(save_path, "wshess.pt")
@@ -319,8 +319,10 @@ def calculate_retain_hess(model, wloader, floader, criterion, save_path=None, su
     else:
         whess_sp = None
         fhess_sp = None
-    whess = calculate_hessian(model, wloader, criterion, save_path=whess_sp, linear=linear, parallel=parallel, cov=cov)
-    fhess = calculate_hessian(model, floader, criterion, save_path=fhess_sp, linear=linear, parallel=parallel, cov=cov)
+    whess = calculate_hessian(model, wloader, criterion, save_path=whess_sp, linear=linear, parallel=parallel, cov=cov,
+                              alpha=alpha)
+    fhess = calculate_hessian(model, floader, criterion, save_path=fhess_sp, linear=linear, parallel=parallel, cov=cov,
+                              alpha=alpha)
     wsize = len(wloader.dataset)
     fsize = len(floader.dataset)
     return (wsize * whess - fsize * fhess) / (wsize - fsize)
@@ -363,7 +365,7 @@ def _linearize_grads(grads):
 
 def calculate_grad_norm(grad):
     grad, prev_sizes = _linearize_grads(grad)
-    return torch.norm(grad).item(), prev_sizes
+    return min(torch.norm(grad).item(), 1), prev_sizes
 
 
 def _adjust_update(update, prev_sizes):
@@ -596,10 +598,11 @@ def set_noise(surr_size, forget_size, grad,
 
 def forget(model, whess_loader, fhess_loader, grad_loader, criterion, device, save_path=None,
            eps=None, delta=None, smooth=1, sc=1, lip=1, hlip=1, surr=False,
-           known=False, surr_loader=None, surr_model=None, kl_distance=None, linear=False, parallel=False, cov=False):
+           known=False, surr_loader=None, surr_model=None, kl_distance=None, linear=False, parallel=False, cov=False,
+           alpha=1):
     fmodel = deepcopy(model.to('cpu')).to(device)
     hess = calculate_retain_hess(fmodel, whess_loader, fhess_loader, criterion, save_path=save_path, surr=surr,
-                                 linear=linear, parallel=parallel, cov=cov)
+                                 linear=linear, parallel=parallel, cov=cov, alpha=alpha)
     grads = calculate_grad(fmodel, grad_loader, criterion)
     update = calculate_update(hess, grads, device, len(whess_loader.dataset) - len(fhess_loader.dataset),
                               len(grad_loader.dataset), cov=cov)

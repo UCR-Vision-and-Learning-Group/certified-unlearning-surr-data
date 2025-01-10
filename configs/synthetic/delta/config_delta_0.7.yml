@@ -6,12 +6,13 @@ data:
   off_cov: 0.05
   surrogate_dataset: gaussian
 setup:
-  base_save_dir: ./results/synthetic/offcov
-  device: 0
+  about: unlearn-delta
+  base_save_dir: ./results/synthetic/delta
+  device: 3
   seed: 42
 train:
   batch_size: 512
-  lambda: 0.001
+  lambda: 0.01
   lr: 0.001
   model:
     activation: none
@@ -21,13 +22,17 @@ train:
   num_epochs: 300
   test_ratio: 0.1
 unlearn:
-  delta: 1
+  alpha: 1
+  cov: false
+  delta: 0.7
   eps_multiplier: 5
   eps_power: 3
   forget_ratio: 0.1
   hlip: 1
   known: true
+  linear: true
   lip: 1
-  sc: 1
+  parallel: false
+  sc: 1.01
   smooth: 1
   surr: true

@@ -3,17 +3,17 @@ setup:
   seed: 42
   device: 1
   base_save_dir: ./results/real
-  about: data-exact_dataset
+  about: unlearn-eps_multiplier
 
 # exact surrogate dataset initialization
 data:
-  exact_dataset: stanforddogs-act
+  exact_dataset: cifar10-act
   surrogate_dataset: none
   dim: 512
-  num_class: 120
+  num_class: 10
   dirichlet: 10
-  train_path: /home/umityigitbsrn/Desktop/umityigitbsrn/certified-unlearning-surr-data/data/stanforddogs_linear_resnet18_train.pth
-  test_path: /home/umityigitbsrn/Desktop/umityigitbsrn/certified-unlearning-surr-data/data/stanforddogs_linear_resnet18_test.pth
+  train_path: /home/umityigitbsrn/Desktop/umityigitbsrn/certified-unlearning-surr-data/data/cifar10_linear_resnet18_train.pth
+  test_path: /home/umityigitbsrn/Desktop/umityigitbsrn/certified-unlearning-surr-data/data/cifar10_linear_resnet18_test.pth
   save_path: none
   strain_path: none
   stest_path: none
@@ -21,7 +21,7 @@ data:
 
 # training related
 train:
-  batch_size: 256
+  batch_size: 128
   lambda: 0.01
   model:
     type: mlp
@@ -29,17 +29,17 @@ train:
     activation: none
     bias: false
   lr: 0.001
-  num_epochs: 10
+  num_epochs: 50
 
 langevin:
-  num_samples: 10
+  num_samples: 500
   input_size:
     - 512
-  batch_size: 10
+  batch_size: 256
   input_range:
     - 0
     - 12
-  max_iter: 1000
+  max_iter: 2000
   step_size: 0.02
 
 unlearn:
@@ -50,11 +50,12 @@ unlearn:
   eps_power: 3
   delta: 1
   smooth: 1
-  sc: 1.001
+  sc: 1.01
   lip: 1
   hlip: 1
   surr: true
   known: true
   linear: true
   parallel: false
-  cov: true
+  cov: false
+  alpha: 1

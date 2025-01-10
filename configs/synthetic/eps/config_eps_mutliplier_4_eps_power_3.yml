@@ -1,0 +1,38 @@
+data:
+  dim: 50
+  exact_dataset: gaussian
+  num_class: 10
+  num_samples: 15000
+  off_cov: 0.05
+  surrogate_dataset: gaussian
+setup:
+  about: unlearn-eps_multiplier
+  base_save_dir: ./results/synthetic/eps
+  device: 2
+  seed: 42
+train:
+  batch_size: 512
+  lambda: 0.01
+  lr: 0.001
+  model:
+    activation: none
+    bias: false
+    hidden_sizes: none
+    type: mlp
+  num_epochs: 300
+  test_ratio: 0.1
+unlearn:
+  alpha: 1
+  cov: false
+  delta: 1
+  eps_multiplier: 4
+  eps_power: 3
+  forget_ratio: 0.1
+  hlip: 1
+  known: true
+  linear: true
+  lip: 1
+  parallel: false
+  sc: 1.01
+  smooth: 1
+  surr: true

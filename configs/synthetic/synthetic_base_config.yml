@@ -3,7 +3,7 @@ setup:
   seed: 42
   device: 0
   base_save_dir: ./results/synthetic
-
+  about: unlearn-eps_multiplier
 
 # exact surrogate dataset initialization
 data:
@@ -12,13 +12,13 @@ data:
   num_samples: 15000
   dim: 50
   num_class: 10
-  off_cov: 0.01
+  off_cov: 0.05
 
 # training related
 train:
   test_ratio: 0.1
   batch_size: 512
-  lambda: 0.001
+  lambda: 0.01
   model:
     type: mlp
     hidden_sizes: none
@@ -35,8 +35,12 @@ unlearn:
   eps_power: 3
   delta: 1
   smooth: 1
-  sc: 1
+  sc: 1.01
   lip: 1
   hlip: 1
   surr: true
-  known: true 
+  known: true
+  linear: true
+  parallel: false
+  cov: false
+  alpha: 1
