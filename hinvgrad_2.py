@@ -8,6 +8,8 @@ from tqdm import tqdm
 from src.loss import L2RegularizedCrossEntropyLoss
 from src.data import get_train_test_datasets, get_transforms
 from torchvision.models import resnet18, ResNet18_Weights
+from torchvision.transforms import v2
+from torchvision.transforms.v2.functional import InterpolationMode
 import logging
 
 logging.basicConfig(
@@ -17,6 +19,49 @@ logging.basicConfig(
     filemode='w'
 )
 
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class CNNModel(nn.Module):
+    def __init__(self, num_classes):
+        super(CNNModel, self).__init__()
+        # Convolutional Block 1
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.dropout = nn.Dropout(0.25)
+
+        # Convolutional Block 2
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.conv4 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+
+        # Fully Connected Block
+        self.fc1 = nn.Linear(128*8*8, 512)  # Assuming 32x32 input
+        self.fc2 = nn.Linear(512, num_classes)
+        self.dropout_fc = nn.Dropout(0.5)
+
+    def forward(self, x):
+        # Block 1
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = self.pool(x)
+        x = self.dropout(x)
+
+        # Block 2
+        x = F.relu(self.conv3(x))
+        x = F.relu(self.conv4(x))
+        x = self.pool(x)
+        x = self.dropout(x)
+
+        # Fully Connected
+        x = x.view(x.size(0), -1)
+        x = F.relu(self.fc1(x))
+        x = self.dropout_fc(x)
+        x = self.fc2(x)
+
+        return x
 
 # Define LeNet-5 network
 # class LeNet5(nn.Module):
@@ -40,7 +85,7 @@ logging.basicConfig(
 #         return x
 
 # Function to evaluate a model
-def evaluate_model(model, dataloader, criterion, device, name="Dataset"):
+def evaluate_model(model, dataloader, criterion, device, name="Dataset", log=True):
     model.eval()
     total_loss = 0
     correct = 0
@@ -59,7 +104,8 @@ def evaluate_model(model, dataloader, criterion, device, name="Dataset"):
     avg_loss = total_loss / total
     accuracy = correct / total * 100
     print(f"Evaluation on {name}: Loss = {avg_loss:.4f}, Accuracy = {accuracy:.2f}%")
-    logging.info(f"Evaluation on {name}: Loss = {avg_loss:.4f}, Accuracy = {accuracy:.2f}%")
+    if log:
+        logging.info(f"Evaluation on {name}: Loss = {avg_loss:.4f}, Accuracy = {accuracy:.2f}%")
     return avg_loss, accuracy
 
 
@@ -119,11 +165,17 @@ def main():
     # train_dataset = datasets.MNIST(root="./data", train=True, download=True, transform=transform)
     # test_dataset = datasets.MNIST(root="./data", train=False, download=True, transform=transform)
 
-    transform = get_transforms('cifar10')
+    # transform = get_transforms('cifar10')
+    transform = v2.Compose([
+            v2.Resize((32, 32), interpolation=InterpolationMode.BILINEAR),  # ResNet18 expects 224x224 input size
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),  # Normalization for pretrained models
+        ])
     train_dataset, test_dataset = get_train_test_datasets('cifar10', transform=transform)
 
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False)
 
     # Select a subset of 5% of the training data
     forget_size = int(len(train_dataset) * 0.05)
@@ -133,13 +185,14 @@ def main():
     # print(len(findices), len(rindices))
     forget_dataset = Subset(train_dataset, findices)
     retain_dataset = Subset(train_dataset, rindices)
-    forget_loader = DataLoader(forget_dataset, batch_size=64, shuffle=True)
-    retain_loader = DataLoader(retain_dataset, batch_size=64, shuffle=True)
+    forget_loader = DataLoader(forget_dataset, batch_size=128, shuffle=True)
+    retain_loader = DataLoader(retain_dataset, batch_size=128, shuffle=True)
 
     # Initialize model, custom loss, and optimizer
-    model = resnet18(weights=ResNet18_Weights.DEFAULT)
+    # model = resnet18(weights=ResNet18_Weights.DEFAULT)
     num_classes = 10
-    model.fc = nn.Linear(model.fc.in_features, num_classes)
+    # model.fc = nn.Linear(model.fc.in_features, num_classes)
+    model = CNNModel(num_classes)
     model = model.to(device)
     # model = LeNet5().to(device)
     custom_loss = L2RegularizedCrossEntropyLoss(l2_lambda=0.01)
@@ -156,6 +209,7 @@ def main():
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+        evaluate_model(model, test_loader, custom_loss, device, log=False)
     print("Training complete!")
 
     # Evaluate the trained model
@@ -202,7 +256,8 @@ def main():
     model = model.to('cpu')
 
     # Clone and update the model
-    updated_model = resnet18()
+    # updated_model = resnet18()
+    updated_model = CNNModel(num_classes)
     updated_model.load_state_dict(model.state_dict())
 
     print("Updating model parameters using H^-1 * grad...")
