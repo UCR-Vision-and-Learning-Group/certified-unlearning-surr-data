@@ -137,7 +137,10 @@ def main():
     retain_loader = DataLoader(retain_dataset, batch_size=64, shuffle=True)
 
     # Initialize model, custom loss, and optimizer
-    model = resnet18(weights=ResNet18_Weights.DEFAULT).to(device)
+    model = resnet18(weights=ResNet18_Weights.DEFAULT)
+    num_classes = 10
+    model.fc = nn.Linear(model.fc.in_features, num_classes)
+    model = model.to(device)
     # model = LeNet5().to(device)
     custom_loss = L2RegularizedCrossEntropyLoss(l2_lambda=0.01)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
