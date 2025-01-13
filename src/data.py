@@ -1,4 +1,4 @@
-from torchvision.datasets import MNIST, USPS, CIFAR10, ImageFolder
+from torchvision.datasets import MNIST, USPS, CIFAR10, ImageFolder, CIFAR100
 from torch.utils.data import DataLoader, Dataset, random_split, Subset, ConcatDataset, TensorDataset
 import numpy as np
 import torch
@@ -61,6 +61,11 @@ def get_train_test_datasets(idx: str, transform=None, target_transform=None,
         train_size = int(0.9 * len(dataset))
         test_size = len(dataset) - train_size
         train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
+    elif idx == 'cifar100':
+        train_dataset = CIFAR100('./data', train=True, transform=transform,
+                                target_transform=target_transform, download=True)
+        test_dataset = CIFAR100('./data', train=False, transform=transform,
+                               target_transform=target_transform, download=True)
     elif 'act' in idx:
         dataset_idx = idx.split('-')[0]
 

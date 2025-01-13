@@ -7,15 +7,16 @@ from tqdm import tqdm
 
 from src.loss import L2RegularizedCrossEntropyLoss
 from src.data import get_train_test_datasets, get_transforms
-from torchvision.models import resnet18, ResNet18_Weights
+from torchvision.models import resnet18, ResNet18_Weights, alexnet, AlexNet_Weights
 from torchvision.transforms import v2
 from torchvision.transforms.v2.functional import InterpolationMode
 import logging
+import time
 
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    filename='hinvgrad_resnet18_cifar10.log',
+    filename='hinvgrad_caltech256.log',
     filemode='w'
 )
 
@@ -24,44 +25,44 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class CNNModel(nn.Module):
-    def __init__(self, num_classes):
-        super(CNNModel, self).__init__()
-        # Convolutional Block 1
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.dropout = nn.Dropout(0.25)
-
-        # Convolutional Block 2
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
-        self.conv4 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
-
-        # Fully Connected Block
-        self.fc1 = nn.Linear(128*8*8, 512)  # Assuming 32x32 input
-        self.fc2 = nn.Linear(512, num_classes)
-        self.dropout_fc = nn.Dropout(0.5)
-
-    def forward(self, x):
-        # Block 1
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = self.pool(x)
-        x = self.dropout(x)
-
-        # Block 2
-        x = F.relu(self.conv3(x))
-        x = F.relu(self.conv4(x))
-        x = self.pool(x)
-        x = self.dropout(x)
-
-        # Fully Connected
-        x = x.view(x.size(0), -1)
-        x = F.relu(self.fc1(x))
-        x = self.dropout_fc(x)
-        x = self.fc2(x)
-
-        return x
+# class CNNModel(nn.Module):
+#     def __init__(self, num_classes):
+#         super(CNNModel, self).__init__()
+#         # Convolutional Block 1
+#         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, padding=1)
+#         self.conv2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
+#         self.pool = nn.MaxPool2d(2, 2)
+#         self.dropout = nn.Dropout(0.25)
+#
+#         # Convolutional Block 2
+#         self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+#         self.conv4 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+#
+#         # Fully Connected Block
+#         self.fc1 = nn.Linear(128*8*8, 512)  # Assuming 32x32 input
+#         self.fc2 = nn.Linear(512, num_classes)
+#         self.dropout_fc = nn.Dropout(0.5)
+#
+#     def forward(self, x):
+#         # Block 1
+#         x = F.relu(self.conv1(x))
+#         x = F.relu(self.conv2(x))
+#         x = self.pool(x)
+#         x = self.dropout(x)
+#
+#         # Block 2
+#         x = F.relu(self.conv3(x))
+#         x = F.relu(self.conv4(x))
+#         x = self.pool(x)
+#         x = self.dropout(x)
+#
+#         # Fully Connected
+#         x = x.view(x.size(0), -1)
+#         x = F.relu(self.fc1(x))
+#         x = self.dropout_fc(x)
+#         x = self.fc2(x)
+#
+#         return x
 
 # Define LeNet-5 network
 # class LeNet5(nn.Module):
@@ -83,6 +84,49 @@ class CNNModel(nn.Module):
 #         x = torch.relu(self.fc2(x))
 #         x = self.fc3(x)
 #         return x
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class ShallowCNN128(nn.Module):
+    def __init__(self, num_classes):
+        super(ShallowCNN128, self).__init__()
+        # Convolutional Block 1
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        # Convolutional Block 2
+        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        # Convolutional Block 3
+        self.conv3 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(128)
+        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        # Fully Connected Layers
+        self.fc1 = nn.Linear(128 * 16 * 16, 512)  # Adjust for 128x128 input size
+        self.fc2 = nn.Linear(512, num_classes)
+
+        # Dropout for regularization
+        self.dropout = nn.Dropout(0.5)
+
+    def forward(self, x):
+        # Forward pass through convolutional blocks
+        x = self.pool1(F.relu(self.bn1(self.conv1(x))))
+        x = self.pool2(F.relu(self.bn2(self.conv2(x))))
+        x = self.pool3(F.relu(self.bn3(self.conv3(x))))
+
+        # Flatten and pass through fully connected layers
+        x = torch.flatten(x, start_dim=1)
+        x = self.dropout(F.relu(self.fc1(x)))
+        x = self.fc2(x)
+        return x
+
 
 # Function to evaluate a model
 def evaluate_model(model, dataloader, criterion, device, name="Dataset", log=True):
@@ -157,7 +201,8 @@ def conjugate_gradient(hvp_fn, b, tol=1e-6, max_iter=100):
 
 
 def main():
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    stime = time.time()
+    device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     # Load MNIST dataset
@@ -166,13 +211,14 @@ def main():
     # test_dataset = datasets.MNIST(root="./data", train=False, download=True, transform=transform)
 
     # transform = get_transforms('cifar10')
-    transform = v2.Compose([
-            v2.Resize((32, 32), interpolation=InterpolationMode.BILINEAR),  # ResNet18 expects 224x224 input size
-            v2.ToImage(),
-            v2.ToDtype(torch.float32, scale=True),
-            v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),  # Normalization for pretrained models
-        ])
-    train_dataset, test_dataset = get_train_test_datasets('cifar10', transform=transform)
+    # transform = v2.Compose([
+    #         v2.Resize((128, 128), interpolation=InterpolationMode.BILINEAR),  # ResNet18 expects 224x224 input size
+    #         v2.ToImage(),
+    #         v2.ToDtype(torch.float32, scale=True),
+    #         v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),  # Normalization for pretrained models
+    #     ])
+    transform = AlexNet_Weights.IMAGENET1K_V1.transforms()
+    train_dataset, test_dataset = get_train_test_datasets('caltech256', transform=transform)
 
     train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False)
@@ -190,9 +236,10 @@ def main():
 
     # Initialize model, custom loss, and optimizer
     # model = resnet18(weights=ResNet18_Weights.DEFAULT)
-    num_classes = 10
+    num_classes = 257
     # model.fc = nn.Linear(model.fc.in_features, num_classes)
-    model = CNNModel(num_classes)
+    model = alexnet(weights=AlexNet_Weights.DEFAULT)
+    model.classifier[6] = nn.Linear(in_features=4096, out_features=num_classes)
     model = model.to(device)
     # model = LeNet5().to(device)
     custom_loss = L2RegularizedCrossEntropyLoss(l2_lambda=0.01)
@@ -200,9 +247,9 @@ def main():
 
     # Train the model
     print("Training the model...")
-    for epoch in range(10):
+    for epoch in range(50):
         model.train()
-        for X_batch, y_batch in tqdm(train_loader, desc=f"Epoch {epoch + 1}/10"):
+        for X_batch, y_batch in tqdm(train_loader, desc=f"Epoch {epoch + 1}/50"):
             X_batch, y_batch = X_batch.to(device), y_batch.to(device)
             outputs = model(X_batch)
             loss = custom_loss(outputs, y_batch, model)
@@ -257,7 +304,8 @@ def main():
 
     # Clone and update the model
     # updated_model = resnet18()
-    updated_model = CNNModel(num_classes)
+    updated_model = alexnet(weights=AlexNet_Weights.DEFAULT)
+    updated_model.classifier[6] = nn.Linear(in_features=4096, out_features=num_classes)
     updated_model.load_state_dict(model.state_dict())
 
     print("Updating model parameters using H^-1 * grad...")
@@ -275,6 +323,8 @@ def main():
     evaluate_model(updated_model, test_loader, custom_loss, device, name="Test Data")
     evaluate_model(updated_model, retain_loader, custom_loss, device, name="Retain Data")
     evaluate_model(updated_model, forget_loader, custom_loss, device, name="Forget Data")
+    etime = time.time()
+    logging.info('elapsed time: {:.3f} mins'.format((etime - stime) / 60))
 
 
 if __name__ == "__main__":
