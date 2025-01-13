@@ -7,8 +7,9 @@ import math
 
 import torch
 import torch.nn as nn
+from torchvision.models import resnet18, ResNet18_Weights
 
-from src.utils import set_seed
+from src.utils import set_seed, freeze_model, melt_model
 from src.data import (get_retain_forget_datasets, get_dataloaders, get_train_test_datasets,
                       get_transforms, get_exact_surr_datasets)
 from src.loss import L2RegularizedCrossEntropyLoss
@@ -45,6 +46,34 @@ def return_model(model_config, dim, num_class):
             model = nn.Sequential(*model_arr)
         else:
             model = nn.Linear(dim, num_class, bias=bias)
+        return model
+    elif model_config['type'] == 'resnet18':
+        model = resnet18(weights=ResNet18_Weights.DEFAULT)
+        freeze_model(model)
+        if model_config['last_layer'] == 1:
+            # Part 2: From layer4 to the fully connected layer
+            model = nn.Sequential(
+                model.layer4,  # Fourth residual block
+                model.avgpool,  # Global average pooling
+                nn.Flatten(),  # Flatten the tensor
+                nn.Linear(model.fc.in_features, num_class)  # Fully connected layer
+            )
+
+            melt_model(model)
+        elif model_config['last_layer'] == 2:
+            melt_model(model.layer4)
+            melt_model(model.layer3)
+        elif model_config['last_layer'] == 3:
+            melt_model(model.layer4)
+            melt_model(model.layer3)
+            melt_model(model.layer2)
+        elif model_config['last_layer'] == 4:
+            melt_model(model.layer4)
+            melt_model(model.layer3)
+            melt_model(model.layer2)
+            melt_model(model.layer1)
+        elif model_config['last_layer'] == 5:
+            melt_model(model)
         return model
 
 

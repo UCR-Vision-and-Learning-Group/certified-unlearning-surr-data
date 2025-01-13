@@ -249,7 +249,7 @@ def get_transforms(idx):
             v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),  # Normalization for pretrained models
         ])
-    elif idx == 'caltech256' or idx == 'stanforddogs':
+    elif idx == 'caltech256' or idx == 'stanforddogs' or idx == 'cifar100':
         return v2.Compose([
             v2.Resize((224, 224), interpolation=InterpolationMode.BILINEAR),  # ResNet18 expects 224x224 input size
             v2.ToImage(),
