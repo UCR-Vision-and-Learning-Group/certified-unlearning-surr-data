@@ -1,6 +1,8 @@
 data:
   dim:
   - 512
+  - 7
+  - 7
   dirichlet: 10
   exact_dataset: cifar10-act
   num_class: 10
@@ -9,8 +11,8 @@ data:
   stest_path: none
   strain_path: none
   surrogate_dataset: none
-  test_path: ./data/cifar10-extracted-features/linear_test.pth
-  train_path: ./data/cifar10-extracted-features/linear_train.pth
+  test_path: ./data/cifar10-extracted-features/conv_test.pth
+  train_path: ./data/cifar10-extracted-features/conv_train.pth
 langevin:
   batch_size: 128
   input_range:
@@ -18,6 +20,8 @@ langevin:
   - 3
   input_size:
   - 512
+  - 7
+  - 7
   max_iter: 4000
   num_samples: 1000
   step_size: 0.02
