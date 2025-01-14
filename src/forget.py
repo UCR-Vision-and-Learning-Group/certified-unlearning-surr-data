@@ -110,7 +110,7 @@ def ihvp(model, hloader, gloader, criterion):
     hsize = len(hloader.dataset)
     gsize = len(gloader.dataset)
     print("Computing overall gradient...")
-    params = list(model.parameters())
+    params = [param for param in model.parameters() if param.requires_grad]
     overall_gradient = None
     total_size = 0
     for X_batch, y_batch in tqdm(gloader, desc="Computing Gradient on Forget"):
@@ -442,7 +442,7 @@ def calculate_grad(model, loader, criterion):
         else:
             loss = criterion(output, label)
         loss.backward()
-        curr_grads = [param.grad.clone().detach().to('cpu') for param in model.parameters()]
+        curr_grads = [param.grad.clone().detach().to('cpu') for param in model.parameters() if param.requires_grad]
         grads = _accumulate_grads(grads, curr_grads, total_size, total_size + data.shape[0])
         total_size = total_size + data.shape[0]
     return grads
@@ -486,7 +486,7 @@ def calculate_update(hessian, grads, device, hess_ss, grad_ss, cov=False):
 
 
 def update_model(model, updates):
-    params = [param for param in model.parameters()]
+    params = [param for param in model.parameters() if param.requires_grad]
     device = get_module_device(model)
     with torch.no_grad():
         for param, update in zip(params, updates):
@@ -699,10 +699,11 @@ def forget(model, whess_loader, fhess_loader, grad_loader, criterion, device, sa
         print("Updating model parameters using H^-1 * grad...")
         offset = 0
         for param in fmodel.parameters():
-            param_size = param.numel()
-            param_update = update[offset: offset + param_size].view(param.size())
-            param.data -= param_update
-            offset += param_size
+            if param.requires_grad:
+                param_size = param.numel()
+                param_update = update[offset: offset + param_size].view(param.size())
+                param.data -= param_update
+                offset += param_size
         fmodel = fmodel.to(device)
 
     else:

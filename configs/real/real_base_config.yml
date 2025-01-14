@@ -7,16 +7,14 @@ setup:
 
 # exact surrogate dataset initialization
 data:
-  exact_dataset: cifar100-act
+  exact_dataset: cifar10-act
   surrogate_dataset: none
   dim:
-    - 256
-    - 14
-    - 14
+    - 512
   num_class: 10
   dirichlet: 10
-  train_path: /home/umityigitbsrn/Desktop/umityigitbsrn/certified-unlearning-surr-data/data/cifar100-extracted-features/resnet18_l4_train.pth
-  test_path: /home/umityigitbsrn/Desktop/umityigitbsrn/certified-unlearning-surr-data/data/cifar100-extracted-features/resnet18_l4_test.pth
+  train_path: ./data/cifar10-extracted-features/linear_train.pth
+  test_path: ./data/cifar10-extracted-features/linear_test.pth
   save_path: none
   strain_path: none
   stest_path: none
@@ -28,16 +26,14 @@ train:
   lambda: 0.01
   model:
     type: resnet18
-    last_layer: 1
+    mode: linear
   lr: 0.001
-  num_epochs: 30
+  num_epochs: 10
 
 langevin:
   num_samples: 1000
   input_size:
-    - 256
-    - 14
-    - 14
+    - 512
   batch_size: 128
   input_range:
     - -3
@@ -53,12 +49,12 @@ unlearn:
   eps_power: 3
   delta: 1
   smooth: 1
-  sc: 1.1
+  sc: 1.01
   lip: 1
   hlip: 1
   surr: true
   known: true
-  linear: true
+  linear: false
   parallel: false
   cov: false
   alpha: 1

@@ -49,31 +49,28 @@ def return_model(model_config, dim, num_class):
         return model
     elif model_config['type'] == 'resnet18':
         model = resnet18(weights=ResNet18_Weights.DEFAULT)
-        freeze_model(model)
-        if model_config['last_layer'] == 1:
-            # Part 2: From layer4 to the fully connected layer
+        if model_config['mode'] == 'linear':
+            model = nn.Sequential(nn.Flatten(),
+                                  nn.Linear(model.fc.in_features, num_class))
+        elif model_config['mode'] == 'conv1':
             model = nn.Sequential(
-                model.layer4,  # Fourth residual block
+                model.layer4[1],  # Fourth residual block
                 model.avgpool,  # Global average pooling
                 nn.Flatten(),  # Flatten the tensor
                 nn.Linear(model.fc.in_features, num_class)  # Fully connected layer
             )
 
-            melt_model(model)
-        elif model_config['last_layer'] == 2:
-            melt_model(model.layer4)
-            melt_model(model.layer3)
-        elif model_config['last_layer'] == 3:
-            melt_model(model.layer4)
-            melt_model(model.layer3)
-            melt_model(model.layer2)
-        elif model_config['last_layer'] == 4:
-            melt_model(model.layer4)
-            melt_model(model.layer3)
-            melt_model(model.layer2)
-            melt_model(model.layer1)
-        elif model_config['last_layer'] == 5:
-            melt_model(model)
+            for idx, param in enumerate(model.parameters()):
+                param.requires_grad = False
+                if idx == 2:
+                    break
+        elif model_config['mode'] == 'conv2':
+            model = nn.Sequential(
+                model.layer4[1],  # Fourth residual block
+                model.avgpool,  # Global average pooling
+                nn.Flatten(),  # Flatten the tensor
+                nn.Linear(model.fc.in_features, num_class)  # Fully connected layer
+            )
         return model
 
 
