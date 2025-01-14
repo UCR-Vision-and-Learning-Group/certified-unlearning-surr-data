@@ -22,9 +22,9 @@ langevin:
   num_samples: 1000
   step_size: 0.02
 setup:
-  about: data-exact_dataset
-  base_save_dir: ./results/real/cifar10/real
-  device: 1
+  about: train-lambda
+  base_save_dir: ./results/real/cifar10/lambda
+  device: 0
   seed: 42
 train:
   batch_size: 128

@@ -1,7 +1,7 @@
 data:
   dim:
   - 512
-  dirichlet: 10
+  dirichlet: 1
   exact_dataset: cifar10-act
   num_class: 10
   save_path: none
@@ -22,9 +22,9 @@ langevin:
   num_samples: 1000
   step_size: 0.02
 setup:
-  about: data-exact_dataset
-  base_save_dir: ./results/real/cifar10/real
-  device: 1
+  about: data-dirichlet
+  base_save_dir: ./results/real/cifar10/dirichlet
+  device: 3
   seed: 42
 train:
   batch_size: 128

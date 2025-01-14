@@ -22,8 +22,8 @@ langevin:
   num_samples: 1000
   step_size: 0.02
 setup:
-  about: data-exact_dataset
-  base_save_dir: ./results/real/cifar10/real
+  about: train-model-mode
+  base_save_dir: ./results/real/cifar10/model
   device: 1
   seed: 42
 train:
@@ -31,7 +31,7 @@ train:
   lambda: 0.01
   lr: 0.001
   model:
-    mode: linear
+    mode: conv1
     type: resnet18
   num_epochs: 10
 unlearn:
