@@ -23,6 +23,7 @@ train:
   test_ratio: 0.1
 unlearn:
   alpha: 1
+  conjugate: true
   cov: false
   delta: 0.8
   eps_multiplier: 5
@@ -30,7 +31,7 @@ unlearn:
   forget_ratio: 0.1
   hlip: 1
   known: true
-  linear: true
+  linear: false
   lip: 1
   parallel: false
   sc: 1.01

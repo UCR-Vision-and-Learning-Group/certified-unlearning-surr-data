@@ -1,0 +1,52 @@
+data:
+  dim:
+  - 512
+  dirichlet: 1
+  exact_dataset: caltech256-act
+  num_class: 257
+  save_path: none
+  ssave_path: none
+  stest_path: none
+  strain_path: none
+  surrogate_dataset: none
+  test_path: ./data/caltech256-extracted-features/linear_test.pth
+  train_path: ./data/caltech256-extracted-features/linear_train.pth
+langevin:
+  batch_size: 128
+  input_range:
+  - -3
+  - 3
+  input_size:
+  - 512
+  max_iter: 4000
+  num_samples: 1000
+  step_size: 0.02
+setup:
+  about: data-dirichlet
+  base_save_dir: ./results/real/caltech256/dirichlet
+  device: 1
+  seed: 42
+train:
+  batch_size: 128
+  lambda: 0.01
+  lr: 0.001
+  model:
+    mode: linear
+    type: resnet18
+  num_epochs: 10
+unlearn:
+  alpha: 1
+  conjugate: true
+  cov: false
+  delta: 1
+  eps_multiplier: 5
+  eps_power: 3
+  forget_ratio: 0.1
+  hlip: 1
+  known: true
+  linear: false
+  lip: 1
+  parallel: false
+  sc: 1.01
+  smooth: 1
+  surr: true

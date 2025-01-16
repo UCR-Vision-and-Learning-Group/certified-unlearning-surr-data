@@ -37,7 +37,7 @@ def train_dv_bound(ploader, qloader, device, num_epoch=10):
     for s in shape:
         input_dim *= s
     f_theta = VariationalFunction(input_dim).to(device)  # Move model to GPU
-    optimizer = optim.Adam(f_theta.parameters(), lr=0.00001)
+    optimizer = optim.Adam(f_theta.parameters(), lr=0.0001)
     qloader_cycle = cycle(qloader)
     for epoch in range(num_epoch):  # Adjust epochs as needed
         dv_loss_epoch = 0

@@ -8,7 +8,7 @@ data:
 setup:
   about: unlearn-forget_ratio
   base_save_dir: ./results/synthetic/fratio
-  device: 2
+  device: 3
   seed: 42
 train:
   batch_size: 512
@@ -23,6 +23,7 @@ train:
   test_ratio: 0.1
 unlearn:
   alpha: 1
+  conjugate: true
   cov: false
   delta: 1
   eps_multiplier: 5
@@ -30,7 +31,7 @@ unlearn:
   forget_ratio: 0.1
   hlip: 1
   known: true
-  linear: true
+  linear: false
   lip: 1
   parallel: false
   sc: 1.01

@@ -1,46 +1,39 @@
-# experiment setup
-setup:
-  seed: 42
-  device: 0
-  base_save_dir: ./results/synthetic
-  about: unlearn-eps_multiplier
-
-# exact surrogate dataset initialization
 data:
-  exact_dataset: gaussian # it could be either gaussian, ball or hypercube
-  surrogate_dataset: gaussian # it could be either gaussian, ball or hypercube
-  num_samples: 15000
   dim: 50
+  exact_dataset: gaussian
   num_class: 10
+  num_samples: 15000
   off_cov: 0.05
-
-# training related
+  surrogate_dataset: gaussian
+setup:
+  about: unlearn-eps_multiplier
+  base_save_dir: ./results/synthetic
+  device: 3
+  seed: 42
 train:
-  test_ratio: 0.1
   batch_size: 512
   lambda: 0.01
+  lr: 0.001
   model:
-    type: mlp
-    hidden_sizes: none
     activation: none
     bias: false
-  lr: 0.001
+    hidden_sizes: none
+    type: mlp
   num_epochs: 300
-
+  test_ratio: 0.1
 unlearn:
-  # unlearning related
-  forget_ratio: 0.1
-  # noise related
+  alpha: 1
+  conjugate: true
+  cov: false
+  delta: 1
   eps_multiplier: 5
   eps_power: 3
-  delta: 1
-  smooth: 1
-  sc: 1.01
-  lip: 1
+  forget_ratio: 0.1
   hlip: 1
-  surr: true
   known: true
-  linear: true
+  linear: false
+  lip: 1
   parallel: false
-  cov: false
-  alpha: 1
+  sc: 1.01
+  smooth: 1
+  surr: true

@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # Directory containing the configuration files
-CONFIG_DIR="./certified-unlearning-surr-data/configs/real/cifar10/eps"
+CONFIG_DIR="/home/umityigitbsrn/Desktop/umityigitbsrn/certified-unlearning-surr-data/configs/real/caltech256/dirichlet"
 
 # Python script to run with each configuration file
-PYTHON_SCRIPT="./certified-unlearning-surr-data/real_main.py"
+PYTHON_SCRIPT="/home/umityigitbsrn/Desktop/umityigitbsrn/certified-unlearning-surr-data/real_main.py"
 
-# device: 0
+# device: 3
 
 # Loop through each configuration file in the directory
 for config_file in "$CONFIG_DIR"/*.yml; do

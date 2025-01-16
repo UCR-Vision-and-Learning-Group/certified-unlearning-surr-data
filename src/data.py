@@ -216,9 +216,11 @@ def get_exact_surr_datasets(dataset,
         # find target sizes for each class
         max_sizes = [len(partition) for partition in class_partitions]
         target_sizes = _get_sizes(target_size, target_ratios, max_sizes)
+        logging.info('target sizes: {}'.format(target_sizes))
         starget_sizes = None
         if starget_size is not None and starget_ratios is not None:
             starget_sizes = _get_sizes(starget_size, starget_ratios, max_sizes)
+            logging.info('starget sizes: {}'.format(starget_sizes))
 
         # randomly select specified number of samples from each class
         first_class_partitions, second_class_partitions = [], []
@@ -236,6 +238,9 @@ def get_exact_surr_datasets(dataset,
     elif dirichlet is not None:
         # generate class proportions for both exact and surrogate datasets
         client_class_distributions = np.random.dirichlet(dirichlet * np.ones(num_class), size=2)
+        logging.info('dirichlet: {}'.format(dirichlet))
+        logging.info('client class distributions: {}\n{}'.format(client_class_distributions[0],
+                                                                 client_class_distributions[1]))
         # print(client_class_distributions)
         return get_exact_surr_datasets(dataset, target_size=target_size, target_ratios=client_class_distributions[0],
                                        starget_size=starget_size, starget_ratios=client_class_distributions[1])
