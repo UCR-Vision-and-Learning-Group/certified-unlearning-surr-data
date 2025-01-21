@@ -26,18 +26,48 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, device):
     pbar.close()
 
 
-def train(train_loader, val_loader, model, criterion, optimizer, num_epoch=10, device=None, target_acc=None,
-          threshold=0.05):
-    device = get_module_device(model)
-    model.train()
-    for epoch in range(num_epoch):
-        train_epoch(train_loader, model, criterion, optimizer, epoch=epoch, device=device)
-        if target_acc is None:
-            evaluate(val_loader, model, criterion, device=device)
+def train_epoch_relearn(train_loader, val_loader, model, criterion, optimizer, device, target_acc, threshold):
+    for iter, (data, target) in enumerate(train_loader):
+        data, target = data.to(device), target.to(device)
+        output = model(data)
+        if isinstance(criterion, L2RegularizedCrossEntropyLoss):
+            loss = criterion(output, target, model)
         else:
-            acc = evaluate(val_loader, model, criterion, device=device, log=True)
-            if abs(target_acc - acc) < threshold:
-                return (epoch + 1) * len(train_loader.dataset)
+            loss = criterion(output, target)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        acc = evaluate(val_loader, model, criterion, device=device, log=True)
+        if abs(target_acc - acc) < threshold:
+            return iter + 1
+    return len(train_loader)
+
+
+def train(train_loader, val_loader, model, criterion, optimizer, num_epoch=10, device=None, target_acc=None,
+          threshold=0.05, relearn_metric='default'):
+    # relearn metric would be either aggressive or default
+    # in default: it checks the number of iterations required based on epoch
+    # in aggressive: it controls it in every iteration
+    if relearn_metric == 'default':
+        device = get_module_device(model)
+        model.train()
+        for epoch in range(num_epoch):
+            train_epoch(train_loader, model, criterion, optimizer, epoch=epoch, device=device)
+            if target_acc is None:
+                evaluate(val_loader, model, criterion, device=device)
+            else:
+                acc = evaluate(val_loader, model, criterion, device=device, log=True)
+                if abs(target_acc - acc) < threshold:
+                    return (epoch + 1) * len(train_loader.dataset)
+    elif relearn_metric == 'aggressive' and target_acc is not None:
+        device = get_module_device(model)
+        model.train()
+        tot_iter = 0
+        for epoch in range(num_epoch):
+            tot_iter += train_epoch_relearn(train_loader, val_loader, model, criterion, optimizer, device, target_acc,
+                                            threshold)
+        return tot_iter
 
 
 def train_vae(train_loader, vae, optimizer, num_epoch=10, device=None):
@@ -57,4 +87,3 @@ def train_vae(train_loader, vae, optimizer, num_epoch=10, device=None):
             optimizer.step()
             pbar.set_postfix(loss=loss['loss'].item(), recon=loss['Reconstruction_Loss'].item(), kld=loss['KLD'].item())
         pbar.close()
-
