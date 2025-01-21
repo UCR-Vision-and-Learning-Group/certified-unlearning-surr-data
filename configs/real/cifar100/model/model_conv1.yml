@@ -11,8 +11,8 @@ data:
   stest_path: none
   strain_path: none
   surrogate_dataset: none
-  test_path: ./data/cifar100-extracted-features/linear_test.pth
-  train_path: ./data/cifar100-extracted-features/linear_train.pth
+  test_path: ./data/cifar100-extracted-features/conv_test.pth
+  train_path: ./data/cifar100-extracted-features/conv_train.pth
 langevin:
   batch_size: 128
   input_range:
