@@ -28,7 +28,7 @@ langevin:
 setup:
   about: train-model-mode
   base_save_dir: ./results/real/caltech256/model
-  device: 0
+  device: 3
   seed: 42
 train:
   batch_size: 128

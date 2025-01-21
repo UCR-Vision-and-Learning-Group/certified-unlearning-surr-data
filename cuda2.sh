@@ -2,8 +2,8 @@
 
 # device: 0
 
-DATASET="sdogs"
-EXP="delta"
+DATASET="cifar100"
+EXP="fratio"
 MODE="real"
 CONFIG_DIR="./configs/"$MODE"/"$DATASET"/"$EXP""
 PYTHON_SCRIPT="./real_main.py"

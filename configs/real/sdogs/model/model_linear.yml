@@ -24,7 +24,7 @@ langevin:
 setup:
   about: train-model-mode
   base_save_dir: ./results/real/stanforddogs/model
-  device: 0
+  device: 2
   seed: 42
 train:
   batch_size: 128

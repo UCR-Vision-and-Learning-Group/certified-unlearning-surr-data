@@ -28,6 +28,9 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, device):
 
 def train_epoch_relearn(train_loader, val_loader, model, criterion, optimizer, device, target_acc, threshold):
     for iter, (data, target) in enumerate(train_loader):
+        acc = evaluate(val_loader, model, criterion, device=device, log=True)
+        if abs(target_acc - acc) < threshold:
+            return iter + 1
         data, target = data.to(device), target.to(device)
         output = model(data)
         if isinstance(criterion, L2RegularizedCrossEntropyLoss):
@@ -37,15 +40,11 @@ def train_epoch_relearn(train_loader, val_loader, model, criterion, optimizer, d
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
-        acc = evaluate(val_loader, model, criterion, device=device, log=True)
-        if abs(target_acc - acc) < threshold:
-            return iter + 1
     return len(train_loader)
 
 
 def train(train_loader, val_loader, model, criterion, optimizer, num_epoch=10, device=None, target_acc=None,
-          threshold=0.05, relearn_metric='default'):
+          threshold=0.005, relearn_metric='default'):
     # relearn metric would be either aggressive or default
     # in default: it checks the number of iterations required based on epoch
     # in aggressive: it controls it in every iteration
@@ -65,8 +64,12 @@ def train(train_loader, val_loader, model, criterion, optimizer, num_epoch=10, d
         model.train()
         tot_iter = 0
         for epoch in range(num_epoch):
-            tot_iter += train_epoch_relearn(train_loader, val_loader, model, criterion, optimizer, device, target_acc,
+            curr_iter = train_epoch_relearn(train_loader, val_loader, model, criterion, optimizer, device, target_acc,
                                             threshold)
+            tot_iter += curr_iter
+            print('done somewhere in epoch {}'.format(epoch + 1))
+            if curr_iter != len(train_loader):
+                break
         return tot_iter
 
 

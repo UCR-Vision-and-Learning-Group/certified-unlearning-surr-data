@@ -2,7 +2,7 @@
 
 # device: 0
 
-DATASET="sdogs"
+DATASET="cifar100"
 EXP="delta"
 MODE="real"
 CONFIG_DIR="./configs/"$MODE"/"$DATASET"/"$EXP""

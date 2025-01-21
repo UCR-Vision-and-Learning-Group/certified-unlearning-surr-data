@@ -24,7 +24,7 @@ data:
 setup:
   about: unlearn-delta
   base_save_dir: ./results/real/cifar10/delta
-  device: 0
+  device: 1
   seed: 42
 train:
   batch_size: 128

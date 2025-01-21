@@ -127,11 +127,11 @@ def membership_inference_attack(model, t_loader, f_loader, seed=42):
     return score
 
 
-def relearn_time(model, criterion, tloader, floader, target_acc, lr=1e-3, relearn_metric='default'):
+def relearn_time(model, criterion, floader, target_acc, lr=1e-3, relearn_metric='aggressive'):
     device = get_module_device(model)
     relearn_model = deepcopy(model.to('cpu')).to(device)
     optimizer = torch.optim.Adam(relearn_model.parameters(), lr=lr)
-    required_iter = train(floader, tloader, relearn_model, criterion, optimizer, target_acc=target_acc,
+    required_iter = train(floader, floader, relearn_model, criterion, optimizer, target_acc=target_acc,
                           relearn_metric=relearn_metric)
     del relearn_model
     return required_iter

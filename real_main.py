@@ -28,7 +28,7 @@ def log_eval(model, train_loader, val_loader, retain_loader, forget_loader, surr
     logging.info(
         'train: {}, test: {}, retain: {}, forget: {}, surrogate:{}'.format(train_acc, test_acc, retain_acc, forget_acc,
                                                                            surr_acc))
-    return train_acc
+    return forget_acc
 
 
 def return_model(model_config, dim, num_class):
@@ -247,7 +247,7 @@ def main():
     log_eval(rmodel, train_loader, test_loader, retain_loader, forget_loader, surr_loader, criterion, device)
     mia_score = membership_inference_attack(rmodel, test_loader, forget_loader)
     logging.info('MIA {}'.format(mia_score))
-    required_iters = relearn_time(rmodel, criterion, train_loader, forget_loader, lr=train_config['lr'],
+    required_iters = relearn_time(rmodel, criterion, forget_loader, lr=train_config['lr'],
                                   target_acc=target_acc)
     logging.info('relearn time T {}'.format(required_iters))
     rmodel = rmodel.to('cpu')
@@ -289,7 +289,7 @@ def main():
     log_eval(umodel, train_loader, test_loader, retain_loader, forget_loader, surr_loader, criterion, device)
     mia_score = membership_inference_attack(umodel, test_loader, forget_loader)
     logging.info('MIA {}'.format(mia_score))
-    required_iters = relearn_time(umodel, criterion, train_loader, forget_loader, lr=train_config['lr'],
+    required_iters = relearn_time(umodel, criterion, forget_loader, lr=train_config['lr'],
                                   target_acc=target_acc)
     logging.info('relearn time T {}'.format(required_iters))
     umodel = umodel.to('cpu')
@@ -314,7 +314,7 @@ def main():
         smodel = smodel.to('cpu')
         mia_score = membership_inference_attack(usmodel, test_loader, forget_loader)
         logging.info('MIA {}'.format(mia_score))
-        required_iters = relearn_time(usmodel, criterion, train_loader, forget_loader, lr=train_config['lr'],
+        required_iters = relearn_time(usmodel, criterion, forget_loader, lr=train_config['lr'],
                                       target_acc=target_acc)
         logging.info('relearn time T {}'.format(required_iters))
         usmodel = usmodel.to('cpu')
