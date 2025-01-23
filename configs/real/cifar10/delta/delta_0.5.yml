@@ -1,13 +1,3 @@
-langevin:
-  batch_size: 128
-  input_range:
-  - -3
-  - 3
-  input_size:
-  - 512
-  max_iter: 4000
-  num_samples: 1000
-  step_size: 0.02
 data:
   dim:
   - 512
@@ -21,6 +11,16 @@ data:
   surrogate_dataset: none
   test_path: ./data/cifar10-extracted-features/linear_test.pth
   train_path: ./data/cifar10-extracted-features/linear_train.pth
+langevin:
+  batch_size: 128
+  input_range:
+  - -3
+  - 3
+  input_size:
+  - 512
+  max_iter: 4000
+  num_samples: 1000
+  step_size: 0.02
 setup:
   about: unlearn-delta
   base_save_dir: ./results/real/cifar10/delta

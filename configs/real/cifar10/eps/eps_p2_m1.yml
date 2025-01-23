@@ -24,7 +24,7 @@ langevin:
 setup:
   about: unlearn-eps_multiplier
   base_save_dir: ./results/real/cifar10/eps
-  device: 0
+  device: 2
   seed: 42
 train:
   batch_size: 128

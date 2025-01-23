@@ -1,16 +1,16 @@
 data:
   dim:
   - 512
-  dirichlet: 10
-  exact_dataset: cifar10-act
-  num_class: 10
+  dirichlet: 1.0
+  exact_dataset: cifar100-act
+  num_class: 100
   save_path: none
   ssave_path: none
   stest_path: none
   strain_path: none
   surrogate_dataset: none
-  test_path: ./data/cifar10-extracted-features/linear_test.pth
-  train_path: ./data/cifar10-extracted-features/linear_train.pth
+  test_path: ./data/cifar100-extracted-features/linear_test.pth
+  train_path: ./data/cifar100-extracted-features/linear_train.pth
 langevin:
   batch_size: 128
   input_range:
@@ -22,9 +22,9 @@ langevin:
   num_samples: 1000
   step_size: 0.02
 setup:
-  about: unlearn-eps_multiplier
-  base_save_dir: ./results/real/cifar10/eps
-  device: 2
+  about: data-dirichlet
+  base_save_dir: ./results/real/cifar100/dirichlet
+  device: 3
   seed: 42
 train:
   batch_size: 128
@@ -39,7 +39,7 @@ unlearn:
   conjugate: true
   cov: false
   delta: 1
-  eps_multiplier: 3
+  eps_multiplier: 5
   eps_power: 3
   forget_ratio: 0.1
   hlip: 1
