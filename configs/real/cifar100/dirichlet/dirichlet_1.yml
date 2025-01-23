@@ -1,7 +1,7 @@
 data:
   dim:
   - 512
-  dirichlet: 1
+  dirichlet: 1.6681005372000588
   exact_dataset: cifar100-act
   num_class: 100
   save_path: none
@@ -24,7 +24,7 @@ langevin:
 setup:
   about: data-dirichlet
   base_save_dir: ./results/real/cifar100/dirichlet
-  device: 0
+  device: 3
   seed: 42
 train:
   batch_size: 128

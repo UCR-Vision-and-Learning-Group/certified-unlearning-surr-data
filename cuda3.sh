@@ -2,8 +2,8 @@
 
 # device: 0
 
-DATASET="sdogs"
-EXP="lambda"
+DATASET="cifar10"
+EXP="dirichlet"
 MODE="real"
 CONFIG_DIR="./configs/"$MODE"/"$DATASET"/"$EXP""
 PYTHON_SCRIPT="./real_main.py"

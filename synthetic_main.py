@@ -256,7 +256,7 @@ def main():
         usmodel = forget(model, surr_loader, forget_loader, forget_loader, criterion, device, save_path=experiment_dir,
                          eps=eps, delta=delta, smooth=smooth, sc=sc, lip=lip, hlip=hlip, surr=surr,
                          known=known, surr_loader=surr_loader, surr_model=smodel, kl_distance=kl_distance,
-                         linear=linear, parallel=parallel, cov=cov, alpha=alpha)
+                         linear=linear, parallel=parallel, cov=cov, alpha=alpha, prev_size=len(train_dataset))
         log_eval(usmodel, train_loader, test_loader, retain_loader, forget_loader, surr_loader, criterion, device)
         smodel = smodel.to('cpu')
         mia_score = membership_inference_attack(usmodel, test_loader, forget_loader)

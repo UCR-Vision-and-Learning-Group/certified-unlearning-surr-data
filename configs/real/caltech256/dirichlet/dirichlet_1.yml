@@ -1,7 +1,7 @@
 data:
   dim:
   - 512
-  dirichlet: 1
+  dirichlet: 1.6681005372000588
   exact_dataset: caltech256-act
   num_class: 257
   save_path: none
@@ -24,7 +24,7 @@ langevin:
 setup:
   about: data-dirichlet
   base_save_dir: ./results/real/caltech256/dirichlet
-  device: 1
+  device: 2
   seed: 42
 train:
   batch_size: 128

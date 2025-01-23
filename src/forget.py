@@ -625,20 +625,20 @@ def calculate_upper_tv(known=False, surr_loader=None, model=None, surr_model=Non
         _, app_kl_distance = estimate_marginal_kl_distance(surr_loader, gen_exact_loader, device)
         app_up_cross = approximate_upper_cross_entropy(surr_loader, model, surr_model)
         app_kl = app_up_cross + app_kl_distance
-        upper_tv = 2 * brategnolle_huber(app_kl)
+        upper_tv = brategnolle_huber(app_kl)
         print(upper_tv)
     else:
         upper_tv = None
     return upper_tv
 
 
-def calculate_upper_app_unlearn_surr(grad, smooth, sc, known=False, surr_loader=None, model=None,
+def calculate_upper_app_unlearn_surr(grad, smooth, sc, fsize, ssize, psize, known=False, surr_loader=None, model=None,
                                      surr_model=None, kl_distance=None):
-    upper = smooth / (sc ** 2)
     upper_tv = calculate_upper_tv(known=known, surr_loader=surr_loader, model=model,
                                   surr_model=surr_model, kl_distance=kl_distance)
     grad_norm, prev_sizes = calculate_grad_norm(grad)
     if upper_tv is not None:
+        upper = ((ssize * fsize * smooth) + (psize * fsize * smooth)) / ((ssize * sc - fsize * smooth) * (psize * sc - fsize * smooth))
         upper = upper * upper_tv * grad_norm
         logging.info('upper: {}'.format(upper))
     else:
@@ -655,12 +655,17 @@ def calculate_upper_retrain_app_unlearn(num_retain, num_forget, sc, lip, hlip):
 def set_noise(surr_size, forget_size, grad,
               eps, delta, smooth=1, sc=1, lip=1, hlip=1, surr=False,
               known=False, surr_loader=None, model=None,
-              surr_model=None, kl_distance=None):
-    upper_retrain_app_unlearn = calculate_upper_retrain_app_unlearn(surr_size,
-                                                                    forget_size,
-                                                                    sc, lip, hlip)
+              surr_model=None, kl_distance=None, prev_size=None):
+    if prev_size is None:
+        upper_retrain_app_unlearn = calculate_upper_retrain_app_unlearn(surr_size,
+                                                                        forget_size,
+                                                                        sc, lip, hlip)
+    else:
+        upper_retrain_app_unlearn = calculate_upper_retrain_app_unlearn(prev_size,
+                                                                        forget_size,
+                                                                        sc, lip, hlip)
     logging.info('upper_retrain_app_unlearn: {}'.format(upper_retrain_app_unlearn))
-    upper_app_unlearn_surr, prev_sizes = calculate_upper_app_unlearn_surr(grad, smooth, sc,
+    upper_app_unlearn_surr, prev_sizes = calculate_upper_app_unlearn_surr(grad, smooth, sc, forget_size, surr_size, prev_size,
                                                                           known=known, surr_loader=surr_loader,
                                                                           model=model,
                                                                           surr_model=surr_model,
@@ -690,7 +695,7 @@ def set_noise(surr_size, forget_size, grad,
 def forget(model, whess_loader, fhess_loader, grad_loader, criterion, device, save_path=None,
            eps=None, delta=None, smooth=1, sc=1, lip=1, hlip=1, surr=False,
            known=False, surr_loader=None, surr_model=None, kl_distance=None, linear=False, parallel=False, cov=False,
-           alpha=1, conjugate=True):
+           alpha=1, conjugate=True, prev_size=None):
 
     fmodel = deepcopy(model.to('cpu'))
     if conjugate:
@@ -719,6 +724,6 @@ def forget(model, whess_loader, fhess_loader, grad_loader, criterion, device, sa
         noise = set_noise(len(whess_loader.dataset), len(fhess_loader.dataset), grads, eps, delta,
                           smooth=smooth, sc=sc, lip=lip, hlip=hlip, surr=surr,
                           known=known, surr_loader=surr_loader, model=model,
-                          surr_model=surr_model, kl_distance=kl_distance)
+                          surr_model=surr_model, kl_distance=kl_distance, prev_size=prev_size)
         update_model(fmodel, noise)
     return fmodel

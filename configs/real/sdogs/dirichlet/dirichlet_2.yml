@@ -1,7 +1,7 @@
 data:
   dim:
   - 512
-  dirichlet: 1.6681005372000588
+  dirichlet: 2.7825594022071245
   exact_dataset: stanforddogs-act
   num_class: 120
   save_path: none

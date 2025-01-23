@@ -1,16 +1,16 @@
 data:
   dim:
   - 512
-  dirichlet: 10
-  exact_dataset: cifar100-act
-  num_class: 100
+  dirichlet: 35.93813663804626
+  exact_dataset: stanforddogs-act
+  num_class: 120
   save_path: none
   ssave_path: none
   stest_path: none
   strain_path: none
   surrogate_dataset: none
-  test_path: ./data/cifar100-extracted-features/linear_test.pth
-  train_path: ./data/cifar100-extracted-features/linear_train.pth
+  test_path: ./data/stanforddogs-extracted-features/linear_test.pth
+  train_path: ./data/stanforddogs-extracted-features/linear_train.pth
 langevin:
   batch_size: 128
   input_range:
@@ -23,8 +23,8 @@ langevin:
   step_size: 0.02
 setup:
   about: data-dirichlet
-  base_save_dir: ./results/real/cifar100/dirichlet
-  device: 0
+  base_save_dir: ./results/real/stanforddogs/dirichlet
+  device: 1
   seed: 42
 train:
   batch_size: 128
