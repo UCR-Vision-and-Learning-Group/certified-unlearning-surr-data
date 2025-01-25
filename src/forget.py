@@ -699,7 +699,9 @@ def forget(model, whess_loader, fhess_loader, grad_loader, criterion, device, sa
 
     fmodel = deepcopy(model.to('cpu'))
     if conjugate:
+        model = model.to(device)
         _, update = ihvp(model, whess_loader, fhess_loader, criterion)
+        model = model.to('cpu')
         grads = calculate_grad(fmodel, grad_loader, criterion)
         print("Updating model parameters using H^-1 * grad...")
         offset = 0
