@@ -3,7 +3,7 @@
 # device: 0
 
 DATASET="cifar10"
-EXP="delta"
+EXP="dirichlet/conv1"
 MODE="real"
 CONFIG_DIR="./configs/"$MODE"/"$DATASET"/"$EXP""
 PYTHON_SCRIPT="./real_main.py"
