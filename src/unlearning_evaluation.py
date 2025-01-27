@@ -294,7 +294,8 @@ def final_score(
         prev_size,
         sigma,
         unlearned_confs_path,
-        num_models=num_models
+        num_models=num_models,
+        device=device
     )
 
     u_r_mean = np.mean(unlearned_retain_accs)

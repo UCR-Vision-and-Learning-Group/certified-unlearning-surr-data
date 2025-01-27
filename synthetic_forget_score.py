@@ -5,6 +5,7 @@
 
 
 import torch
+# from argparse import Namespace
 import argparse
 import yaml
 import torch.nn as nn
@@ -14,7 +15,7 @@ import math
 from torchvision.models import resnet18, ResNet18_Weights
 
 from src.utils import set_seed
-# from src.synthetic import GaussianDataset
+from src.synthetic import GaussianDataset
 from src.data import get_retain_forget_datasets, get_dataloaders, get_transforms, get_train_test_datasets, \
     get_exact_surr_datasets
 from src.loss import L2RegularizedCrossEntropyLoss
@@ -44,31 +45,6 @@ def return_model(model_config, dim, num_class):
         else:
             model = nn.Linear(dim, num_class, bias=bias)
         return model
-    elif model_config['type'] == 'resnet18':
-        model = resnet18(weights=ResNet18_Weights.DEFAULT)
-        if model_config['mode'] == 'linear':
-            model = nn.Sequential(nn.Flatten(),
-                                  nn.Linear(model.fc.in_features, num_class))
-        elif model_config['mode'] == 'conv1':
-            model = nn.Sequential(
-                model.layer4[1],  # Fourth residual block
-                model.avgpool,  # Global average pooling
-                nn.Flatten(),  # Flatten the tensor
-                nn.Linear(model.fc.in_features, num_class)  # Fully connected layer
-            )
-
-            for idx, param in enumerate(model.parameters()):
-                param.requires_grad = False
-                if idx == 2:
-                    break
-        elif model_config['mode'] == 'conv2':
-            model = nn.Sequential(
-                model.layer4[1],  # Fourth residual block
-                model.avgpool,  # Global average pooling
-                nn.Flatten(),  # Flatten the tensor
-                nn.Linear(model.fc.in_features, num_class)  # Fully connected layer
-            )
-        return model
 
 
 def replace_none_with_none(d):
@@ -94,11 +70,11 @@ def log_eval(model, train_loader, val_loader, retain_loader, forget_loader, surr
 # In[3]:
 
 if __name__ == '__main__':
+
     parser = argparse.ArgumentParser(description='wrapper of all real forget dataset experiments')
     parser.add_argument('--base', type=str, required=True, help='path to base folder')
     parser.add_argument('--device', type=int, required=True, help='device number')
     args = parser.parse_args()
-
     config_path = os.path.join(args.base, 'config.yaml')
     with open(config_path, 'r') as file:
         config = yaml.safe_load(file)
@@ -118,33 +94,26 @@ if __name__ == '__main__':
     data_config = config['data']
     exact_dataset_type = data_config['exact_dataset']
     surrogate_dataset_type = data_config['surrogate_dataset']
+    num_samples = data_config['num_samples']
     dim = data_config['dim']
+    exact_mean = np.zeros(dim)
+    exact_cov = np.eye(dim)
     num_class = data_config['num_class']
-    transforms = get_transforms(exact_dataset_type)
-    train_dataset, test_dataset = get_train_test_datasets(exact_dataset_type, transform=transforms,
-                                                          train_path=data_config['train_path'],
-                                                          test_path=data_config['test_path'],
-                                                          save_path=data_config['save_path'],
-                                                          device=device)
-    if surrogate_dataset_type is not None:
-        stransforms = get_transforms(surrogate_dataset_type)
-        surr_dataset, _ = get_train_test_datasets(surrogate_dataset_type, transform=transforms,
-                                                  train_path=data_config['strain_path'],
-                                                  test_path=data_config['stest_path'],
-                                                  save_path=data_config['ssave_path'],
-                                                  device=device)
-    else:
-        exact_size = int(len(train_dataset) / 2)
-        surr_size = len(train_dataset) - exact_size
-        dirichlet = data_config['dirichlet']
-        train_dataset, surr_dataset = get_exact_surr_datasets(train_dataset,
-                                                              target_size=exact_size,
-                                                              starget_size=surr_size,
-                                                              dirichlet=dirichlet, num_class=num_class)
+    off_cov = data_config['off_cov']
+    off_cov = data_config['off_cov']
+    if exact_dataset_type == 'gaussian':
+        dataset = GaussianDataset(num_samples, num_class, exact_mean, exact_cov)
+
+    if surrogate_dataset_type == 'gaussian' and exact_dataset_type == 'gaussian':
+        surr_cov = exact_cov + off_cov * (np.ones_like(exact_cov) - np.eye(dim))
+        surr_dataset = dataset.create_surr(exact_mean, surr_cov)
+        kl_distance = surr_dataset.calculate_kl_between(dataset)
 
     train_config = config['train']
 
     # set train test data
+    test_ratio = train_config['test_ratio']
+    train_dataset, test_dataset = get_retain_forget_datasets(dataset, test_ratio)
     forget_ratio = config['unlearn']['forget_ratio']
     retain_dataset, forget_dataset = get_retain_forget_datasets(train_dataset, forget_ratio)
     train_loader, test_loader = get_dataloaders([train_dataset, test_dataset], train_config['batch_size'])
@@ -174,12 +143,6 @@ if __name__ == '__main__':
     # In[5]:
 
     floader_nosh = DataLoader(forget_dataset, batch_size=train_config['batch_size'], shuffle=False)
-    with open(os.path.join(args.base, 'experiment.log'), 'r') as f:
-        for line in f:
-            if 'INFO:root:noise -->' in line and 'kl_distance' in line:
-                kl_distance = float(line.split(',')[-1].split()[-1])
-                break
-
     retrained_conf_path_less = os.path.join(args.base, 'retrained_conf_less.npz')
     retrained_conf_path_more = os.path.join(args.base, 'retrained_conf_more.npz')
     retrained_conf_path_retrain = os.path.join(args.base, 'retrained_conf_retrain.npz')
@@ -200,7 +163,7 @@ if __name__ == '__main__':
                                        surr_loader,
                                        retrained_conf_path_more, kl_distance, config_path, criterion,
                                        len(train_dataset),
-                                       sigma_more, unlearned_conf_path_more, device=device, num_models=100)
+                                       sigma_more, unlearned_conf_path_more, device=device, num_models=512)
 
     # In[7]:
 
@@ -213,6 +176,8 @@ if __name__ == '__main__':
                                          train_loader, retrained_conf_path_retrain, 0, config_path, criterion,
                                          len(train_dataset), sigma_less, unlearned_conf_path_retrain, device=device,
                                          num_models=100)
+
+    # In[8]:
 
     print('fscore with kl distance in play:', forget_score)
     print('fscore with kl distance not in play:', forget_score2)
