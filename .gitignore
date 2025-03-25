@@ -164,6 +164,7 @@ cython_debug/
 
 # custom
 token.tomb
+token.txt
 icml.jpg
 **/**playground**
 **/data/
