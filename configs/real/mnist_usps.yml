@@ -1,0 +1,36 @@
+data:
+  dim:
+    - 784
+  exact_dataset: 'usps'
+  surrogate_dataset: 'mnist'
+langevin:
+  batch_size: 128
+  input_range:
+  - -1
+  - 1
+  input_size:
+    - 784
+  max_iter: 4000
+  num_samples: 1000
+  step_size: 0.02
+train:
+  batch_size: 128
+  lambda: 0.01
+  lr: 0.001
+  num_epochs: 10
+unlearn:
+  alpha: 1
+  conjugate: true
+  cov: false
+  delta: 1
+  eps_multiplier: 5
+  eps_power: 3
+  forget_ratio: 0.1
+  hlip: 1
+  known: true
+  linear: false
+  lip: 1
+  parallel: false
+  sc: 1.01
+  smooth: 1
+  surr: true
