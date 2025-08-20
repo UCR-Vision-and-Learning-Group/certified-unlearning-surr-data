@@ -13,7 +13,7 @@ year: 2025
 booktitle: "Forty-second International Conference on Machine Learning"
 url: "https://openreview.net/forum?id=8lt5776GLB"
 preferred-citation:
-  type: in-proceedings
+  type: conference-paper
   title: "A Certified Unlearning Approach without Access to Source Data"
   authors:
     - family-names: Basaran
