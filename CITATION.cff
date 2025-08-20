@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+title: "A Certified Unlearning Approach without Access to Source Data"
+authors:
+  - family-names: Basaran
+    given-names: Umit Yigit
+  - family-names: Ahmed
+    given-names: Sk Miraj
+  - family-names: Roy-Chowdhury
+    given-names: Amit
+  - family-names: Guler
+    given-names: Basak
+year: 2025
+booktitle: "Forty-second International Conference on Machine Learning"
+url: "https://openreview.net/forum?id=8lt5776GLB"
+preferred-citation:
+  type: in-proceedings
+  title: "A Certified Unlearning Approach without Access to Source Data"
+  authors:
+    - family-names: Basaran
+      given-names: Umit Yigit
+    - family-names: Ahmed
+      given-names: Sk Miraj
+    - family-names: Roy-Chowdhury
+      given-names: Amit
+    - family-names: Guler
+      given-names: Basak
+  year: 2025
+  booktitle: "Forty-second International Conference on Machine Learning"
+  url: "https://openreview.net/forum?id=8lt5776GLB"
